@@ -26,26 +26,34 @@ This is an early version.
   hills, rocks and alien plants
 - Crashed spaceship with a blinking warning light, smoke and an entrance hatch
 - The ship is solid: Laika can't walk through it, only in through the door
-- Inside: the ship's interior with a control console, empty oxygen gauge,
-  windows, an exit door, and the astronaut lying in a coma on a cot next to a
-  heart monitor
+- Inside: the ship's main room with the monitor, windows, an exit door, and
+  the astronaut lying unconscious on a bed next to a heart monitor
 - Ship monitor tutorial: press E at the monitor inside the ship to see the
   story, the main objective, and blinking picture steps Laika can understand
-  (other room → oxygen tank → put it on → go outside → find the
-  communication device → attach it to her space suit → get a Treat)
-- Storage room: a second room inside the ship, through the door with the blue
-  O2 sign
-- Mission 1 – Find the oxygen supply: the oxygen tank is hidden in the storage
-  room. Press E next to it to collect it
-- Mission 2 – Recover the communication device: find the beeping device among
-  the debris outside, press E to pick it up, bring it back to the ship and
-  press E to attach it to Laika. It stays attached for the rest of the game
-- Objective tracker (top-right) with hints, plus pop-up messages
+  (other room → oxygen tank → put it on → fill it in the oxygen room → go
+  outside → find the communication device → attach it to her space suit →
+  get a Treat)
+- Storage room: through the main room's door with the blue O2 sign
+- Oxygen room: through the storage room's door with the green O2 FILL sign.
+  The filling station fills (and later refills) Laika's oxygen
+- Oxygen meter (bottom-right): oxygen runs out slowly, faster outside. If it
+  runs out, Laika faints and wakes up in the oxygen room with a full meter
+- Treat counter (bottom-left)
+- Tutorial missions, in order:
+  1. Find the oxygen tank in the storage room (press E)
+  2. Fill it at the filling station in the oxygen room (press E).
+     Laika can't leave the ship until her tank is filled
+  3. Go outside and find the beeping communication device (press E)
+  4. Bring it back to the ship and attach it to Laika (press E)
+- When all four are done, a "!" blinks above the ship monitor. Pressing E
+  there shows "Tutorial Complete" and the next set of tasks
+  (add them to `NEXT_TASKS` in `game.js`)
+- Objective tracker (top-right, can be hidden) with hints, plus pop-up messages
 - Treats are the game's currency: +1 Treat for each finished mission
 - Control instructions panel
 - The game scales to fit the browser window
 
-The ending (restoring life support) is not built yet.
+The next set of tasks and the ending (restoring life support) are not built yet.
 
 ## Controls
 
@@ -57,6 +65,7 @@ The ending (restoring life support) is not built yet.
 | Walk up into a door          | Enter / exit the ship         |
 | E (at the ship monitor)      | Open / close the tutorial     |
 | E (next to an item)          | Pick up the item              |
+| E (at the filling station)   | Fill / refill oxygen          |
 | E (at the ship with device)  | Attach the device to Laika    |
 | Esc / Close button           | Close the tutorial            |
 | H                            | Show / hide controls panel    |
@@ -120,13 +129,14 @@ the top of `game.js`.
 | `assets/Title screen World.gif` | The spinning planet they crash on: title screen, menu, and the cutscene's flight toward it (animated GIF, loops forever) | Our team (add artist name) |
 | `assets/Spaceship.png` | The ship: flying (title screen and cutscene) and crashed on the planet | Our team (add artist name) |
 | `assets/Planet ground.png` | Ground texture on the planet | Our team (add artist name) |
-| `assets/Oxygen tank.png` | Oxygen tank in the storage room, on Laika's back, and in the tutorial pictures | Our team (add artist name) |
+| `assets/Oxygen tank.png` | Oxygen tank in the storage room, on Laika's back, the big tanks of the filling station, the oxygen meter icon, and the tutorial pictures | Our team (add artist name) |
 | `assets/Monitor.gif` | The ship monitor inside the ship that opens the tutorial (animated GIF, shown 2x) | Our team (add artist name) |
 | `assets/Laika.png` | Laika, the playable dachshund (sprite sheet: 1 column x 2 rows, both frames face left). Walking switches frames quickly; standing switches slowly for a tail wag. Also used in the tutorial pictures | Our team (add artist name) |
+| `assets/Laikia walking.png` | Laika's walking animation (sprite sheet: 1 column x 3 rows, all facing left; played 1-2-3-2 while she moves) | Our team (add artist name) |
 | `assets/Astronaut frames.png` | The unconscious astronaut lying on the bed (sprite sheet: 30 columns x 5 rows; one "lying on her back" frame from the falling-down row is used, because she can't move) | Our team (add artist name) |
 | `assets/Radio.png` | The communication device: on the ground, in Laika's mouth, on her side, and in the tutorial pictures | Our team (add artist name) |
-| `assets/Interior (2).png` | Walls and floors inside the ship (blue-gray panels and gray tiles in the main room, beige panels and teal tiles in the storage room) | Our team (add artist name) |
-| `assets/Interior (1).png` | Furniture inside the ship: the astronaut's bed, doorways, windows, a plant, storage shelves and a rack, and the cabinets in the storage room | Our team (add artist name) |
+| `assets/Interior (2).png` | Walls and floors inside the ship (main room, storage room and oxygen room) | Our team (add artist name) |
+| `assets/Interior (1).png` | Furniture inside the ship: the astronaut's bed, doorways, windows, plants, storage shelves and a rack, cabinets, and lockers in the oxygen room | Our team (add artist name) |
 | `assets/Space helmet.png` | Laika's space helmet (flips with her; also in the tutorial pictures) | Our team (add artist name) |
 | `assets/rocks.png` | Rocks knocked loose by the crash, scattered around the planet (a sheet of loose rocks; the small and medium ones are used) | Our team (add artist name) |
 | `assets/Blue tree.png`, `Blue tree 2.png`, `Cool blue tree.png`, `Purple tree.png`, `Purple tree 2.png` | Trees along the horizon on the planet | Our team (add artist name) |

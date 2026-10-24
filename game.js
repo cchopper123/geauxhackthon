@@ -66,6 +66,7 @@ const images = {
   spaceship: loadImage("assets/Spaceship.png"),
   oxygenTank: loadImage("assets/Oxygen tank.png"),
   laika: loadImage("assets/Laika.png"),
+  laikaWalk: loadImage("assets/Laikia walking.png"),
   spaceHelmet: loadImage("assets/Space helmet.png"),
   rocks: loadImage("assets/rocks.png"),
   radio: loadImage("assets/Radio.png"),
@@ -90,11 +91,15 @@ const INTERIOR = {
   wallStorage: { x: 0, y: 608, width: 128, height: 64 },  // beige panels
   floorMain: { x: 352, y: 352, width: 96, height: 64 },   // gray floor tiles
   floorStorage: { x: 352, y: 288, width: 96, height: 64 }, // teal round tiles
+  wallOxygen: { x: 0, y: 288, width: 128, height: 64 },   // light teal panels
+  floorOxygen: { x: 448, y: 160, width: 96, height: 64 }, // gray stone
   // From "Interior (1).png" (furniture)
   bed: { x: 256, y: 576, width: 64, height: 52 },
   window: { x: 26, y: 846, width: 76, height: 50 },
   doorway: { x: 258, y: 278, width: 28, height: 42 },
   plant: { x: 386, y: 1444, width: 28, height: 46 },
+  plantSmall: { x: 4, y: 1580, width: 24, height: 28 },
+  lockers: { x: 32, y: 506, width: 126, height: 56 },
   shelfWide: { x: 64, y: 592, width: 128, height: 64 },
   shelfTall: { x: 160, y: 448, width: 64, height: 128 },
   rack: { x: 204, y: 594, width: 42, height: 62 },
@@ -210,15 +215,15 @@ const objectivesPanel = document.getElementById("objectives");
 const objectiveOxygen = document.getElementById("objective-oxygen");
 const objectiveDevice = document.getElementById("objective-device");
 const objectiveAttach = document.getElementById("objective-attach");
+const objectiveFill = document.getElementById("objective-fill");
 const objectiveHint = document.getElementById("objective-hint");
-const treatCount = document.getElementById("treat-count");
 const messageBox = document.getElementById("message");
 const objectivesBody = document.getElementById("objectives-body");
 const objectivesToggle = document.getElementById("objectives-toggle");
 
 // ----- Game state -----
 let state = "title";        // always start on the title screen
-let currentScene = "outside"; // during play: "outside", "inside" or "storage"
+let currentScene = "outside"; // during play: "outside", "inside", "storage" or "oxygenRoom"
 let messageTimer = 0;       // seconds left to show the pop-up message
 let attachEffectTime = 0;   // seconds left of the "device attached" sparkles
 let waitForUpRelease = false; // true right after using a door (see updatePlay)
@@ -501,6 +506,32 @@ const storageExit = {
   width: 16
 };
 
+// Door on the storage room's back wall (right side) that leads to the oxygen room
+const oxygenRoomDoor = {
+  x: 290,
+  width: 16
+};
+
+// Door on the oxygen room's back wall that leads back to the storage room
+const oxygenRoomExit = {
+  x: 30,
+  width: 16
+};
+
+// The oxygen filling station against the oxygen room's back wall
+const oxygenFiller = {
+  x: 140,
+  width: 84
+};
+
+// ----- Oxygen -----
+// Laika's oxygen goes from 100 (full) to 0 (empty). It runs out slowly,
+// faster outside the ship. Refill it at the filling station.
+let oxygen = 100;
+const OXYGEN_DRAIN_INSIDE = 0.35;  // per second inside the ship (about 4.5 minutes from full)
+const OXYGEN_DRAIN_OUTSIDE = 0.8;  // per second outside (about 2 minutes from full)
+let lowOxygenWarned = false;       // so the "oxygen low" message only shows once
+
 // Crates in the storage room. y = bottom of the crate.
 // sprite = which cabinet from INTERIOR is drawn (at 3/4 of its size)
 const crates = [
@@ -515,7 +546,8 @@ const oxygenTank = {
   scene: "storage",
   x: 270,  // center
   y: 140,  // bottom
-  collected: false
+  collected: false, // Laika picked it up (it starts empty)
+  filled: false     // filled at the oxygen room's filling station
 };
 
 // Mission 2: the communication device, thrown out of the ship during the crash.
@@ -541,7 +573,11 @@ const solids = {
     // helmet doesn't go behind the GIF
     { x: monitor.x, y: INSIDE_FLOOR_TOP, width: monitor.width, height: 20 }
   ],
-  storage: []
+  storage: [],
+  oxygenRoom: [
+    // The filling station: Laika stops in front of it
+    { x: oxygenFiller.x, y: INSIDE_FLOOR_TOP, width: oxygenFiller.width, height: 14 }
+  ]
 };
 for (const crate of crates) {
   solids.storage.push({ x: crate.x, y: crate.y - 8, width: crate.width, height: 10 });
@@ -788,10 +824,29 @@ function updatePlay(deltaTime) {
       dog.x = exitDoor.x + exitDoor.width / 2 - dog.width / 2;
       dog.y = INSIDE_FLOOR_TOP + 16;
     } else if (currentScene === "inside" && dogLinedUpWith(exitDoor) && dog.y <= minY + 1) {
-      // Leave the ship. Start just in front of the outside door.
-      currentScene = "outside";
-      dog.x = shipDoor.x + shipDoor.width / 2 - dog.width / 2;
-      dog.y = ship.y + 14;
+      if (!oxygenTank.filled) {
+        // Laika can't go outside until her oxygen tank is filled
+        if (messageTimer <= 0) {
+          showMessage(oxygenTank.collected
+            ? "Fill the oxygen tank in the oxygen room first!"
+            : "Laika needs an oxygen tank before going outside!");
+        }
+      } else {
+        // Leave the ship. Start just in front of the outside door.
+        currentScene = "outside";
+        dog.x = shipDoor.x + shipDoor.width / 2 - dog.width / 2;
+        dog.y = ship.y + 14;
+      }
+    } else if (currentScene === "storage" && dogLinedUpWith(oxygenRoomDoor) && dog.y <= minY + 1) {
+      // Go into the oxygen room. Start just in front of its door.
+      currentScene = "oxygenRoom";
+      dog.x = oxygenRoomExit.x + oxygenRoomExit.width / 2 - dog.width / 2;
+      dog.y = INSIDE_FLOOR_TOP + 16;
+    } else if (currentScene === "oxygenRoom" && dogLinedUpWith(oxygenRoomExit) && dog.y <= minY + 1) {
+      // Back to the storage room. Start just in front of the oxygen room door.
+      currentScene = "storage";
+      dog.x = oxygenRoomDoor.x + oxygenRoomDoor.width / 2 - dog.width / 2;
+      dog.y = INSIDE_FLOOR_TOP + 16;
     } else if (currentScene === "inside" && dogLinedUpWith(storageDoor) && dog.y <= minY + 1) {
       // Go into the storage room. Start just in front of its door.
       currentScene = "storage";
@@ -810,6 +865,32 @@ function updatePlay(deltaTime) {
   }
 
   attachEffectTime = Math.max(0, attachEffectTime - deltaTime);
+
+  updateOxygen(deltaTime);
+}
+
+// Oxygen slowly runs out (faster outside). If it reaches 0, Laika faints
+// and wakes up in the oxygen room with a full meter.
+function updateOxygen(deltaTime) {
+  const drain = currentScene === "outside" ? OXYGEN_DRAIN_OUTSIDE : OXYGEN_DRAIN_INSIDE;
+  oxygen = Math.max(0, oxygen - drain * deltaTime);
+
+  if (oxygen <= 25 && !lowOxygenWarned) {
+    lowOxygenWarned = true;
+    showMessage("Oxygen low! Refill it in the oxygen room.");
+  }
+  if (oxygen > 25) {
+    lowOxygenWarned = false;
+  }
+
+  if (oxygen <= 0) {
+    currentScene = "oxygenRoom";
+    dog.x = oxygenFiller.x + oxygenFiller.width / 2 - dog.width / 2;
+    dog.y = INSIDE_FLOOR_TOP + 34;
+    oxygen = 100;
+    screenFade = 1; // fade back in
+    showMessage("Laika ran out of oxygen! She woke up in the oxygen room.");
+  }
 }
 
 // =============================================
@@ -837,7 +918,21 @@ function dogAtShip() {
 // Each item checks "collected"/"attached" so it can only happen once.
 function getInteraction() {
   if (dogNearMonitor()) {
-    return { text: "Press E: monitor", x: monitor.x + monitor.width / 2, y: 42, action: openTutorial };
+    return { text: "Press E: monitor", x: monitor.x + monitor.width / 2, y: 45, action: openTutorial };
+  }
+  if (dogNearFiller()) {
+    const x = oxygenFiller.x + oxygenFiller.width / 2;
+    if (!oxygenTank.collected) {
+      return { text: "Press E: oxygen filler", x: x, y: 50, action: function () {
+        showMessage("Laika needs an oxygen tank to fill! It's in the storage room.");
+      } };
+    }
+    if (!oxygenTank.filled) {
+      return { text: "Press E: fill oxygen tank", x: x, y: 50, action: fillOxygenTank };
+    }
+    if (oxygen < 99) {
+      return { text: "Press E: refill oxygen", x: x, y: 50, action: refillOxygen };
+    }
   }
   if (!oxygenTank.collected && dogNear(oxygenTank)) {
     return { text: "Press E: take oxygen", x: oxygenTank.x, y: oxygenTank.y - 30, action: collectOxygen };
@@ -854,8 +949,34 @@ function getInteraction() {
 function collectOxygen() {
   oxygenTank.collected = true;
   treats += 1;
-  showMessage("Oxygen tank collected! +1 Treat");
+  showMessage("Oxygen tank collected! Now fill it in the oxygen room. +1 Treat");
   updateObjectives();
+}
+
+// True when Laika is in the oxygen room, standing in front of the filling station
+function dogNearFiller() {
+  return currentScene === "oxygenRoom" &&
+         dog.x + dog.width > oxygenFiller.x &&
+         dog.x < oxygenFiller.x + oxygenFiller.width &&
+         dog.y <= INSIDE_FLOOR_TOP + 24;
+}
+
+function fillOxygenTank() {
+  oxygenTank.filled = true;
+  oxygen = 100;
+  treats += 1;
+  showMessage("Oxygen tank filled! +1 Treat");
+  updateObjectives();
+}
+
+function refillOxygen() {
+  oxygen = 100;
+  showMessage("Oxygen refilled!");
+}
+
+// The tutorial is finished when the tank is filled and the radio is attached
+function tutorialDone() {
+  return oxygenTank.filled && commDevice.attached;
 }
 
 function collectDevice() {
@@ -901,19 +1022,21 @@ function setObjective(element, done, text) {
 // Refreshes the objective tracker and shows a hint for the next step
 function updateObjectives() {
   setObjective(objectiveOxygen, oxygenTank.collected, "Find the oxygen tank");
+  setObjective(objectiveFill, oxygenTank.filled, "Fill it in the oxygen room");
   setObjective(objectiveDevice, commDevice.collected, "Recover the communication device");
   setObjective(objectiveAttach, commDevice.attached, "Attach the device at the ship");
 
-  let hint = "All items found! More coming soon...";
+  let hint = "Hint: the ship monitor has something new for you! (look for the !)";
   if (!oxygenTank.collected) {
     hint = "Hint: look for the blue O2 sign on a door inside the ship.";
+  } else if (!oxygenTank.filled) {
+    hint = "Hint: the oxygen room is through the green door in the storage room.";
   } else if (!commDevice.collected) {
     hint = "Hint: follow the beeping signal outside, among the crash debris.";
   } else if (!commDevice.attached) {
     hint = "Hint: bring the device back to the ship and press E.";
   }
   objectiveHint.textContent = hint;
-  treatCount.textContent = treats;
 }
 
 // =============================================
@@ -928,10 +1051,30 @@ function dogNearMonitor() {
          dog.y <= INSIDE_FLOOR_TOP + 26;
 }
 
+// The next set of tasks, shown on the monitor after the tutorial is complete.
+// Add the new tasks here, for example: "Find the ship's engine part"
+const NEXT_TASKS = [];
+
 function openTutorial() {
   state = "tutorial"; // updatePlay stops running, so Laika can't move
   tutorialTime = 0;
   tutorialPanel.classList.remove("hidden");
+
+  // Once the tutorial tasks are done, the monitor shows "Tutorial Complete"
+  // and the next tasks instead of the picture instructions
+  const done = tutorialDone();
+  document.getElementById("tutorial-steps").classList.toggle("hidden", done);
+  document.getElementById("tutorial-complete").classList.toggle("hidden", !done);
+  if (done) {
+    const list = document.getElementById("next-tasks");
+    list.innerHTML = "";
+    const tasks = NEXT_TASKS.length > 0 ? NEXT_TASKS : ["More tasks coming soon..."];
+    for (const task of tasks) {
+      const item = document.createElement("li");
+      item.textContent = "[ ] " + task;
+      list.appendChild(item);
+    }
+  }
 }
 
 function closeTutorial() {
@@ -1071,6 +1214,30 @@ const TUTORIAL_STEPS = [
       tutorialCtx.restore();
       tSparkle(30, 24, time);
       tSparkle(64, 26, time + 0.25);
+    }
+  },
+  {
+    caption: "Fill it in the oxygen room",
+    draw: function (time) {
+      tDog(4, 30);
+      // Her tank on her back
+      tutorialCtx.save();
+      tutorialCtx.translate(12, 28);
+      tutorialCtx.rotate(Math.PI / 2);
+      if (!drawOxygenImage(tutorialCtx, -2, -6, 4, 12)) {
+        tRect(-2, -6, 4, 12, "#3fa7ff");
+      }
+      tutorialCtx.restore();
+      tArrow(32, 32);
+      // The filling station: big tanks and a pump
+      for (let i = 0; i < 3; i++) {
+        if (!drawOxygenImage(tutorialCtx, 50 + i * 8, 15, 7, 24)) {
+          tRect(51 + i * 8, 17, 5, 22, "#3fa7ff");
+        }
+      }
+      tRect(76, 23, 12, 16, "#4c566a");
+      tRect(78, 25, 8, 5, "#111418");
+      tRect(79, 33, 3, 3, Math.floor(time * 2) % 2 === 0 ? "#5fd39a" : "#1f5a3a");
     }
   },
   {
@@ -1673,6 +1840,14 @@ function drawInsideRoom(time) {
     rect(164, 92, 6, 4, "#9df5c4");
   }
 
+  // Blinking "!" above the monitor once the tutorial tasks are done
+  if (tutorialDone() && Math.floor(time * 3) % 2 === 0) {
+    const cx = monitor.x + monitor.width / 2;
+    rect(cx - 4, 20, 9, 17, "#000000");  // outline
+    rect(cx - 2, 22, 5, 9, "#ffd84d");   // the line of the "!"
+    rect(cx - 2, 33, 5, 3, "#ffd84d");   // the dot
+  }
+
   // Exit door (left) and storage room door (right)
   drawDoorway(exitDoor);
   drawDoorway(storageDoor);
@@ -1762,7 +1937,17 @@ function drawStorageRoom(time) {
   // Shelves full of supplies against the back wall (team artwork)
   const wide = drawPart(ctx, furniture, INTERIOR.shelfWide, 88, INSIDE_FLOOR_TOP - 64, 128, 64);
   drawPart(ctx, furniture, INTERIOR.rack, 222, INSIDE_FLOOR_TOP - 62, 42, 62);
-  drawPart(ctx, furniture, INTERIOR.shelfTall, 270, INSIDE_FLOOR_TOP - 96, 48, 96);
+
+  // Door to the oxygen room, with a green "O2 FILL" sign
+  drawDoorway(oxygenRoomDoor);
+  rect(oxygenRoomDoor.x - 8, 50, oxygenRoomDoor.width + 16, 10, "#1f5a3a");
+  label("O2 FILL", oxygenRoomDoor.x + oxygenRoomDoor.width / 2, 57, "#9df5c4");
+  if (oxygenTank.collected && !oxygenTank.filled && Math.floor(time * 2) % 2 === 0) {
+    // Blinking arrow pointing down at the door once Laika has the tank
+    rect(oxygenRoomDoor.x + 5, 62, 6, 1, "#ffd84d");
+    rect(oxygenRoomDoor.x + 6, 63, 4, 1, "#ffd84d");
+    rect(oxygenRoomDoor.x + 7, 64, 2, 1, "#ffd84d");
+  }
   if (!wide) {
     // Placeholder shelves with boxes
     for (const shelfY of [45, 75]) {
@@ -1854,6 +2039,99 @@ function drawStorage(time) {
 }
 
 // =============================================
+// OXYGEN ROOM (where Laika fills and refills her oxygen)
+// =============================================
+
+function drawOxygenRoom(time) {
+  const furniture = images.interiorFurniture;
+  if (!drawWallAndFloor(INTERIOR.wallOxygen, INTERIOR.floorOxygen)) {
+    drawPlaceholderWallAndFloor("#2f4a52");
+  }
+  label("OXYGEN ROOM", 160, 20, "#ffffff");
+
+  // Lockers and a small plant (team artwork)
+  drawPart(ctx, furniture, INTERIOR.lockers, 234, INSIDE_FLOOR_TOP - 37, 84, 37);
+  drawPart(ctx, furniture, INTERIOR.plantSmall, 70, INSIDE_FLOOR_TOP - 26, 24, 28);
+
+  drawOxygenFiller(time);
+
+  // Door back to the storage room
+  drawDoorway(oxygenRoomExit);
+}
+
+// The filling station: three big oxygen tanks joined by a hose to a pump
+// with a screen. The tanks use Oxygen tank.png; the pump is placeholder shapes.
+function drawOxygenFiller(time) {
+  const left = oxygenFiller.x;
+  const floor = INSIDE_FLOOR_TOP;
+
+  // Big oxygen tanks standing against the wall
+  for (let i = 0; i < 3; i++) {
+    const tankX = left + 4 + i * 16;
+    if (!drawOxygenImage(ctx, tankX, floor - 48, 14, 48)) {
+      rect(tankX + 2, floor - 44, 10, 44, "#3fa7ff"); // placeholder tank
+    }
+  }
+
+  // Hose from the tanks to the pump
+  rect(left + 50, floor - 30, 6, 2, "#2e3440");
+
+  // The pump: a gray machine with a screen and a nozzle
+  const pumpX = left + 56;
+  rect(pumpX, floor - 40, 28, 40, "#4c566a");
+  rect(pumpX, floor - 40, 28, 2, "#7b8496");
+  rect(pumpX + 4, floor - 35, 20, 12, "#111418");             // screen
+  label("O2", pumpX + 14, floor - 26, "#5fd39a");
+  const lightOn = Math.floor(time * 2) % 2 === 0;
+  rect(pumpX + 4, floor - 18, 4, 4, lightOn ? "#5fd39a" : "#1f5a3a"); // ready light
+  rect(pumpX + 12, floor - 18, 12, 3, "#2e3440");             // nozzle
+  rect(pumpX + 22, floor - 16, 2, 6, "#2e3440");
+}
+
+function drawOxygenRoomScene(time) {
+  drawOxygenRoom(time);
+  drawShadow(dog.x, dog.y, dog.width);
+  drawDog(time);
+}
+
+// =============================================
+// HUD: treat counter (bottom left) and oxygen meter (bottom right)
+// =============================================
+
+function drawHud(time) {
+  // Treat counter: a bone-shaped treat and how many Laika has
+  const tx = 6;
+  const ty = 168;
+  rect(tx - 2, ty - 3, 40, 11, "rgba(10,5,30,0.7)");
+  rect(tx, ty, 3, 2, "#f2d3a0");
+  rect(tx, ty + 3, 3, 2, "#f2d3a0");
+  rect(tx + 2, ty + 1, 8, 3, "#f2d3a0");
+  rect(tx + 9, ty, 3, 2, "#f2d3a0");
+  rect(tx + 9, ty + 3, 3, 2, "#f2d3a0");
+  ctx.font = "bold 7px 'Courier New', monospace";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#f2d3a0";
+  ctx.fillText("x " + treats, tx + 15, ty + 5);
+
+  // Oxygen meter: green when full, yellow when half, red (blinking) when low
+  const mx = 248;
+  const my = 165;
+  rect(mx, my, 68, 12, "rgba(10,5,30,0.7)");
+  if (!drawOxygenImage(ctx, mx + 2, my + 1, 4, 10)) {
+    rect(mx + 2, my + 2, 4, 8, "#3fa7ff");
+  }
+  ctx.fillStyle = "#e8fff2";
+  ctx.fillText("O2", mx + 8, my + 8);
+  const barX = mx + 20;
+  const barWidth = 44;
+  rect(barX, my + 3, barWidth, 6, "#2e3440");
+  let color = "#5fd39a";
+  if (oxygen <= 50) color = "#ffd84d";
+  if (oxygen <= 25) color = Math.floor(time * 4) % 2 === 0 ? "#ff3b3b" : "#7a1a1a";
+  rect(barX, my + 3, Math.ceil(barWidth * oxygen / 100), 6, color);
+}
+
+// =============================================
 // LAIKA
 // =============================================
 
@@ -1864,6 +2142,16 @@ const LAIKA_FRAMES = [
   { x: 37, y: 30, width: 507, height: 346 },  // frame 1: tail down
   { x: 37, y: 461, width: 507, height: 346 }  // frame 2: tail up, legs moved
 ];
+
+// "Laikia walking.png" is a sprite sheet with 1 column and 3 rows (3 frames),
+// also facing LEFT. Frame 2 is mid-step with her legs stretched out.
+// All frames use the same box so her body doesn't jump between frames.
+const LAIKA_WALK_FRAMES = [
+  { x: 37, y: 30, width: 507, height: 346 },  // frame 1: legs together, tail down
+  { x: 37, y: 461, width: 507, height: 346 }, // frame 2: mid-step, legs stretched
+  { x: 37, y: 893, width: 507, height: 346 }  // frame 3: legs together, tail up
+];
+const LAIKA_WALK_ORDER = [0, 1, 2, 1]; // play the frames 1-2-3-2, over and over
 
 // Draws Space helmet.png (size x size) on any canvas at (x, y).
 // The visor faces right in the image, so it is flipped when facing left.
@@ -1890,11 +2178,13 @@ function drawDog(time) {
 
   // "part" converts a position measured from her back end (tail = 0,
   // nose = dog.width) into a screen x, for whichever way she is facing.
+  // (Uses whole pixels, like the sprite, so items line up with her exactly.)
   function part(fromBack, w) {
+    const left = Math.round(dog.x);
     if (dog.facing === 1) {
-      return dog.x + fromBack;
+      return left + fromBack;
     }
-    return dog.x + dog.width - fromBack - w;
+    return left + dog.width - fromBack - w;
   }
 
   const walking = state === "play" &&
@@ -1908,7 +2198,16 @@ function drawDog(time) {
 
   if (imageReady(images.laika)) {
     // Team artwork: switch frames quickly while walking, slowly (a tail wag) while standing
-    const frame = LAIKA_FRAMES[walking ? Math.floor(time * 6) % 2 : Math.floor(time * 1.5) % 2];
+    // Walking uses "Laikia walking.png" (3 frames, played 1-2-3-2) if it's loaded;
+    // standing uses Laika.png's 2 frames slowly, like a tail wag.
+    let sheet = images.laika;
+    let frame = LAIKA_FRAMES[Math.floor(time * 1.5) % 2];
+    if (walking && imageReady(images.laikaWalk)) {
+      sheet = images.laikaWalk;
+      frame = LAIKA_WALK_FRAMES[LAIKA_WALK_ORDER[Math.floor(time * 8) % LAIKA_WALK_ORDER.length]];
+    } else if (walking) {
+      frame = LAIKA_FRAMES[Math.floor(time * 6) % 2];
+    }
     const x = Math.round(dog.x);
     const y = Math.round(top);
     ctx.save();
@@ -1916,12 +2215,14 @@ function drawDog(time) {
       // The sprite faces left, so flip it to face right
       ctx.translate(x + dog.width, y);
       ctx.scale(-1, 1);
-      ctx.drawImage(images.laika, frame.x, frame.y, frame.width, frame.height, 0, 0, dog.width, dog.height);
+      ctx.drawImage(sheet, frame.x, frame.y, frame.width, frame.height, 0, 0, dog.width, dog.height);
     } else {
-      ctx.drawImage(images.laika, frame.x, frame.y, frame.width, frame.height, x, y, dog.width, dog.height);
+      ctx.drawImage(sheet, frame.x, frame.y, frame.width, frame.height, x, y, dog.width, dog.height);
     }
     ctx.restore();
-    backY = dog.y - 11;
+    // Her back is 7.5 pixels below the top of the sprite in every frame.
+    // backY is 1 pixel lower, so the tank sits down on her back, not above it.
+    backY = y + 9;
     sideY = dog.y - 7;
 
     // Space helmet over her head (her head is at the nose end of the sprite)
@@ -1954,6 +2255,8 @@ function drawDog(time) {
       ctx.rotate(dog.facing === 1 ? Math.PI / 2 : -Math.PI / 2); // top of the tank -> her head
       drawOxygenImage(ctx, -thickness / 2, -length / 2, thickness, length);
       ctx.restore();
+      // A dark strap around her middle holds the tank on
+      rect(part(9, 1), backY - thickness, 1, thickness + 5, "#3b2a1a");
     } else {
       rect(part(4, length), backY - thickness, length, thickness, "#3fa7ff"); // placeholder tank
       rect(part(8, 1), backY - thickness, 1, thickness, "#ffffff");
@@ -2114,14 +2417,17 @@ function draw(time) {
       drawOutside(time);
     } else if (currentScene === "inside") {
       drawInside(time);
-    } else {
+    } else if (currentScene === "storage") {
       drawStorage(time);
+    } else {
+      drawOxygenRoomScene(time);
     }
     drawInteractionPrompt(time);
     drawAttachEffect(time);
     drawPlayerMarker(time);
+    drawHud(time);
 
-    if (state === "tutorial") {
+    if (state === "tutorial" && !tutorialDone()) {
       drawTutorialPictures(time);
     }
   }

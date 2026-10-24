@@ -202,6 +202,21 @@ body {
   color: #f2d3a0;
 }
 
+/* "Tutorial Complete" screen on the monitor */
+.tutorial-done-title {
+  font-size: 26px;
+  font-weight: bold;
+  color: #ffd84d;
+  text-shadow: 3px 3px 0 #000;
+}
+
+#next-tasks {
+  margin: 0 0 12px 0;
+  padding: 0;
+  list-style: none;
+  color: #e8fff2;
+}
+
 /* ----- Objective tracker (top-right) ----- */
 #objectives {
   position: absolute;
@@ -259,16 +274,10 @@ body {
   color: #9df5c4;
 }
 
-.treat-line {
-  margin-top: 4px !important;
-  color: #f2d3a0;
-  font-weight: bold;
-}
-
 /* ----- Pop-up message ----- */
 #message {
   position: absolute;
-  top: 22%;
+  top: 31%; /* below the "Press E" hints */
   left: 50%;
   transform: translateX(-50%);
   padding: 10px 20px;
