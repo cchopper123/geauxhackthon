@@ -42,6 +42,11 @@ This is an early version.
   oxygen room with a full meter
 - Treat counter (bottom-left); after the tutorial it also shows alien fruit
   and seeds
+- Controls walkthrough: when gameplay starts, a banner teaches the controls
+  one step at a time ("Press W to walk forward", walk back, left, right,
+  hold Shift to run, press E to interact). Each step finishes when the
+  player does it. Doors and interacting open up once all steps are done.
+  The steps are in `MOVE_TUTORIAL` in `game.js`
 - Tutorial missions, in order:
   1. Find the oxygen tank in the storage room (press E)
   2. Fill it at the filling station in the oxygen room (press E).
@@ -60,6 +65,10 @@ This is an early version.
 ### Mission: Keep the Astronaut Alive (after the tutorial)
 
 The objective tracker switches to this mission once the tutorial is done.
+The mission opens up in two steps after the tutorial: when Laika goes back
+inside the ship, the bucket appears in the storage room; when she comes back
+outside, the fruit, seeds, farm and signs appear and the jungle and lake
+open. Until then they are hidden and can't be used.
 
 Main mission (needed to finish):
 

@@ -274,7 +274,7 @@ let treats = 0;             // Treats are the game's money (rewards for missions
 //   "descending" ship on fire, falling toward the planet
 //   "impact"     ship crashes onto the planet surface
 //   "blackout"   screen fades to black
-//   "laika"      fade back in, Laika at the ship's hatch
+//   "laika"      fade back in on the crashed ship (Laika stays inside)
 //   "inside"     inside the ship, Laika next to the astronaut
 const CUTSCENE_LINES = [
   { speaker: "Astronaut", text: "Laika, are you okay?", phase: "space" },
@@ -473,6 +473,9 @@ window.addEventListener("keydown", function (event) {
       controls[waitingForKey] = key;
       saveControls();
       updateControlsText();
+      if (!moveTutorialBox.classList.contains("hidden")) {
+        showMoveTutorialStep(); // show the new key in the walkthrough too
+      }
     }
     waitingForKey = null;
     buildControlsTable();
@@ -522,7 +525,12 @@ window.addEventListener("keydown", function (event) {
   // The interact key uses whatever Laika is next to. It (or Escape) also
   // closes the monitor and mission messages.
   if (!event.repeat) {
-    if (state === "play" && key === controls.interact) {
+    if (state === "play" && key === controls.interact && !moveTutorialDone()) {
+      // During the controls walkthrough, the interact key only finishes its step
+      if (MOVE_TUTORIAL[moveTutorialIndex].action === "interact") {
+        advanceMoveTutorial();
+      }
+    } else if (state === "play" && key === controls.interact) {
       const interaction = getInteraction();
       if (interaction) {
         interaction.action();
@@ -543,6 +551,66 @@ window.addEventListener("keyup", function (event) {
 function holding(action) {
   const arrows = { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" };
   return keys[controls[action]] === true || (arrows[action] !== undefined && keys[arrows[action]] === true);
+}
+
+// ----- Controls walkthrough (before the tutorial) -----
+// At the start of gameplay, Laika learns the controls one step at a time.
+// A step is done when the player does it: walks that way (or runs) for
+// half a second, or presses the interact key. Doors and interacting are
+// paused until all steps are done. Edit the steps here.
+const MOVE_TUTORIAL = [
+  { action: "up", text: function (k) { return "Press " + k("up") + " to walk forward"; } },
+  { action: "down", text: function (k) { return "Press " + k("down") + " to walk back"; } },
+  { action: "left", text: function (k) { return "Press " + k("left") + " to walk left"; } },
+  { action: "right", text: function (k) { return "Press " + k("right") + " to walk right"; } },
+  { action: "run", text: function (k) { return "Hold " + k("run") + " while walking to run"; } },
+  { action: "interact", text: function (k) { return "Press " + k("interact") + " to interact with things"; } }
+];
+const MOVE_TUTORIAL_HOLD = 0.5; // seconds of walking needed for a movement step
+let moveTutorialIndex = 0;      // which step is showing (MOVE_TUTORIAL.length = finished)
+let moveTutorialTime = 0;       // how long the current step's action has been done
+const moveTutorialBox = document.getElementById("move-tutorial");
+
+function moveTutorialDone() {
+  return moveTutorialIndex >= MOVE_TUTORIAL.length;
+}
+
+// Shows the current step in the banner at the top of the screen
+function showMoveTutorialStep() {
+  if (moveTutorialDone()) {
+    moveTutorialBox.classList.add("hidden");
+    return;
+  }
+  const k = function (action) { return "<kbd>" + keyName(controls[action]) + "</kbd>"; };
+  const step = MOVE_TUTORIAL[moveTutorialIndex];
+  moveTutorialBox.innerHTML =
+    "<span class=\"step-count\">CONTROLS " + (moveTutorialIndex + 1) + " / " + MOVE_TUTORIAL.length + "</span>" +
+    step.text(k);
+  moveTutorialBox.classList.remove("hidden");
+}
+
+function advanceMoveTutorial() {
+  moveTutorialIndex += 1;
+  moveTutorialTime = 0;
+  showMoveTutorialStep();
+  if (moveTutorialDone()) {
+    controlsPanel.classList.remove("hidden");
+    showMessage("You're ready! Walk to the ship monitor and press " + keyName(controls.interact) + ".");
+  }
+}
+
+// Called every frame during gameplay: checks if the current step was done
+function updateMoveTutorial(deltaTime) {
+  if (moveTutorialDone()) {
+    return;
+  }
+  const action = MOVE_TUTORIAL[moveTutorialIndex].action;
+  if (action === "run" ? dog.running : (action !== "interact" && holding(action))) {
+    moveTutorialTime += deltaTime;
+    if (moveTutorialTime >= MOVE_TUTORIAL_HOLD) {
+      advanceMoveTutorial();
+    }
+  }
 }
 
 // ----- Pause menu (Escape) -----
@@ -863,6 +931,12 @@ let farmHarvested = false; // has she harvested at least once?
 // The big tree in the jungle (Big Tree.png). Laika can inspect it.
 const bigTree = { x: 30, size: 128, trunkX: 92, inspected: false };
 
+// The mission opens up in two steps after the tutorial:
+// 1. Laika goes back inside the ship -> the bucket appears in the storage room
+// 2. Laika comes back outside        -> fruit, seeds, farm, signs, jungle and lake appear
+let wentInsideAfterTutorial = false;
+let missionUnlocked = false;
+
 let waterGiven = false;      // Laika gave the astronaut water
 let foodGiven = false;       // Laika gave the astronaut food
 let mainMissionDone = false; // both water and food were given
@@ -928,9 +1002,15 @@ function startGameplay() {
   state = "play";
   currentScene = "inside";
   dialogueBox.classList.add("hidden");
-  controlsPanel.classList.remove("hidden");
   objectivesPanel.classList.remove("hidden");
   updateObjectives();
+
+  // First, the controls walkthrough ("Press W to walk forward", ...).
+  // The controls panel appears when it's finished.
+  moveTutorialIndex = 0;
+  moveTutorialTime = 0;
+  controlsPanel.classList.add("hidden");
+  showMoveTutorialStep();
 
   // Laika starts inside the ship, next to the unconscious astronaut
   // (the same spot where the cutscene ends)
@@ -951,11 +1031,6 @@ function startPhase(phase) {
   cutscene.phaseTime = 0;
 
   // Put Laika where she needs to be for the phases that show her
-  if (phase === "laika") {
-    dog.x = shipDoor.x + shipDoor.width / 2 - dog.width / 2;
-    dog.y = ship.y + 10;
-    dog.facing = 1;
-  }
   if (phase === "inside") {
     dog.x = cot.x - 30;
     dog.y = cot.y + 8;
@@ -1130,7 +1205,15 @@ function updatePlay(deltaTime) {
 
   // Outdoors: walking off the left or right edge goes to the next area
   const links = OUTDOOR_LINKS[currentScene];
-  if (links) {
+  const atEdge = (moveX < 0 && dog.x <= 0 && links && links.left) ||
+                 (moveX > 0 && dog.x >= GAME_WIDTH - dog.width && links && links.right);
+  if (atEdge && !missionUnlocked) {
+    // The jungle and the lake open up after the tutorial, once Laika has
+    // been back inside the ship and come out again
+    if (messageTimer <= 0) {
+      showMessage(tutorialDone() ? "Laika should check on the ship first!" : "Finish the tutorial first!");
+    }
+  } else if (links) {
     if (moveX < 0 && dog.x <= 0 && links.left) {
       currentScene = links.left;
       dog.x = GAME_WIDTH - dog.width - 2; // come in from the right edge
@@ -1147,7 +1230,8 @@ function updatePlay(deltaTime) {
   }
 
   // Doors: walking UP while lined up with a door changes the scene
-  if (moveY < 0 && !waitForUpRelease) {
+  // (doors open once the controls walkthrough is finished)
+  if (moveY < 0 && !waitForUpRelease && moveTutorialDone()) {
     const sceneBefore = currentScene;
     if (currentScene === "outside" && dogLinedUpWith(shipDoor) && dog.y <= ship.y + 6) {
       // Enter the ship. Start just in front of the exit door.
@@ -1199,6 +1283,22 @@ function updatePlay(deltaTime) {
 
   updateOxygen(deltaTime);
   updateFarm(deltaTime);
+  updateMissionUnlock();
+  updateMoveTutorial(deltaTime);
+}
+
+// After the tutorial: going back inside the ship, then coming back out,
+// opens up the new mission
+function updateMissionUnlock() {
+  if (!tutorialDone() || missionUnlocked) {
+    return;
+  }
+  if (!isOutdoors(currentScene)) {
+    wentInsideAfterTutorial = true;
+  } else if (wentInsideAfterTutorial) {
+    missionUnlocked = true;
+    showMessage("Something new is growing on the planet... Time to explore!");
+  }
 }
 
 // Plants grow over time, even when Laika is somewhere else
@@ -1303,9 +1403,17 @@ function getInteraction() {
   }
 
   // ----- Mission: Keep the Astronaut Alive -----
+  // (the bucket can be used once Laika has gone back inside after the
+  // tutorial; everything else once she has come back out again)
+  if (!wentInsideAfterTutorial) {
+    return null;
+  }
   if (!bucket.collected && dogNear(bucket)) {
     const text = bucket.found ? "Press E: pick up bucket" : "Press E: take bucket";
     return { text: text, x: bucket.x, y: bucket.y - 14, action: collectBucket };
+  }
+  if (!missionUnlocked) {
+    return null;
   }
   if (dogNearLake()) {
     const x = dog.x + dog.width / 2;
@@ -1978,8 +2086,8 @@ function drawTutorialPictures(time) {
 
 // "Press E: ..." hint when Laika is close enough to something
 function drawInteractionPrompt(time) {
-  if (state !== "play") {
-    return;
+  if (state !== "play" || !moveTutorialDone()) {
+    return; // no "Press E" hints during the controls walkthrough
   }
   const interaction = getInteraction();
   if (interaction) {
@@ -2407,14 +2515,17 @@ function drawOutside(time) {
   drawOutsideBackground(time);
   drawCrashSite(time, 999);
 
-  // The farm next to the ship, items on the ground, and signs to the other areas
-  for (const plot of farmPlots) {
-    drawFarmPlot(plot, time);
+  // Once the new mission is unlocked: the farm next to the ship and signs
+  // to the other areas. (drawGroundItems checks by itself what to show.)
+  if (missionUnlocked) {
+    for (const plot of farmPlots) {
+      drawFarmPlot(plot, time);
+    }
+    label("FARM", 158, 173, "#c8a26b"); // under the plots, so tall plants don't cover it
+    drawSign(18, 162, "<- JUNGLE");
+    drawSign(300, 142, "LAKE ->");
   }
-  label("FARM", 158, 173, "#c8a26b"); // under the plots, so tall plants don't cover it
   drawGroundItems("outside", time);
-  drawSign(18, 162, "<- JUNGLE");
-  drawSign(300, 142, "LAKE ->");
 
   drawShadow(ship.x, ship.y, ship.width);
   drawShadow(dog.x, dog.y, dog.width);
@@ -2570,15 +2681,21 @@ function drawFarmPlot(plot, time) {
 }
 
 // The bucket, if it's lying on the ground in this area
+// (it appears once Laika goes back inside after the tutorial)
 function drawLooseBucket(scene, time) {
-  if (!bucket.collected && bucket.scene === scene) {
+  if (wentInsideAfterTutorial && !bucket.collected && bucket.scene === scene) {
     drawShadow(bucket.x - 4, bucket.y, 8);
     drawBucket(bucket.x - 3, bucket.y - 7, bucket.filled, time);
   }
 }
 
 // Fruit, seeds and the bucket lying around in one area
+// (fruit and seeds appear once the new mission is unlocked)
 function drawGroundItems(scene, time) {
+  drawLooseBucket(scene, time);
+  if (!missionUnlocked) {
+    return;
+  }
   for (const fruit of alienFruits) {
     if (fruit.scene === scene && !fruit.collected) {
       drawShadow(fruit.x - 3, fruit.y, 7);
@@ -2591,7 +2708,6 @@ function drawGroundItems(scene, time) {
       drawSeedPod(pod.x, pod.y, time, pod.type);
     }
   }
-  drawLooseBucket(scene, time);
 }
 
 // The lake area
@@ -3197,6 +3313,12 @@ function drawDog(time) {
     backY = y + 9;
     sideY = y + 11;
 
+    // The bucket hangs just under her helmet (from her mouth). It's drawn
+    // before the helmet, so the helmet covers the top of its handle.
+    if (bucket.collected) {
+      drawBucket(part(18, 7), y + 10, bucket.filled, time);
+    }
+
     // Space helmet over her head (her head is at the nose end of the sprite)
     drawHelmet(ctx, part(13, 14), y - 3, 14, dog.facing === 1);
   } else {
@@ -3249,8 +3371,9 @@ function drawDog(time) {
     }
   }
 
-  // The bucket hangs from her mouth by its handle (shows water once filled)
-  if (bucket.collected) {
+  // Placeholder Laika only: the bucket hangs from her mouth by its handle
+  // (with the real sprite it's drawn above, under her helmet)
+  if (bucket.collected && !imageReady(images.laika)) {
     drawBucket(part(dog.width - 3, 7), sideY - 4, bucket.filled, time);
   }
 }
@@ -3349,8 +3472,11 @@ function drawCutscene(time) {
     rect(0, 0, GAME_WIDTH, GAME_HEIGHT, "rgba(0,0,0," + Math.min(t / 1.5, 0.95) + ")");
 
   } else if (phase === "laika") {
-    // Fade back in: Laika has climbed out of the hatch
-    drawOutside(time);
+    // Fade back in on the crashed ship (Laika is still inside, so she isn't shown)
+    drawOutsideBackground(time);
+    drawCrashSite(time, 999);
+    drawShadow(ship.x, ship.y, ship.width);
+    drawShip(time);
     rect(0, 0, GAME_WIDTH, GAME_HEIGHT, "rgba(0,0,0," + Math.max(0, 0.95 - t) + ")");
 
   } else if (phase === "inside") {

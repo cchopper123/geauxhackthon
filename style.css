@@ -324,18 +324,55 @@ body {
   color: #9df5c4;
 }
 
+/* ----- Controls walkthrough (start of gameplay) ----- */
+#move-tutorial {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: rgba(10, 5, 30, 0.92);
+  border: 3px solid #9df5c4;
+  box-shadow: 4px 4px 0 #000;
+  color: #e8fff2;
+  font-size: clamp(13px, 1.8vw, 19px);
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+}
+
+#move-tutorial .step-count {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: #9df5c4;
+}
+
+/* A key drawn like a keyboard key, e.g. [W] */
+#move-tutorial kbd {
+  display: inline-block;
+  min-width: 1.2em;
+  padding: 1px 6px;
+  margin: 0 3px;
+  background: #ffd84d;
+  color: #1a0b33;
+  border: 2px solid #e8fff2;
+  box-shadow: 2px 2px 0 #000;
+  font-family: inherit;
+}
+
 /* ----- Pop-up message ----- */
 #message {
   position: absolute;
   top: 31%; /* below the "Press E" hints */
   left: 50%;
   transform: translateX(-50%);
-  padding: 10px 20px;
+  padding: 6px 14px;
   background: rgba(10, 5, 30, 0.92);
-  border: 4px solid #ffd84d;
-  box-shadow: 6px 6px 0 #000;
+  border: 3px solid #ffd84d;
+  box-shadow: 4px 4px 0 #000;
   color: #ffd84d;
-  font-size: clamp(16px, 2.5vw, 26px);
+  font-size: clamp(12px, 1.6vw, 17px);
   font-weight: bold;
   text-align: center;
   white-space: nowrap;
