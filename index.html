@@ -31,7 +31,7 @@
   <!-- 3. Dialogue box (shown during the crash cutscene) -->
   <div id="dialogue-box" class="hidden">
     <!-- Face of the character who is talking (drawn by game.js) -->
-    <canvas id="dialogue-portrait" width="32" height="32"></canvas>
+    <canvas id="dialogue-portrait" width="96" height="96"></canvas>
     <div class="dialogue-content">
       <div id="dialogue-speaker"></div>
       <div id="dialogue-text"></div>
@@ -47,7 +47,8 @@
     <h1>Wiener Dog in Space</h1>
     <p>You play as <b>Laika</b> the dachshund.</p>
     <p>The astronaut is unconscious inside the ship and can't move.</p>
-    <p><b>Move:</b> WASD or Arrow Keys</p>
+    <p><b>Move:</b> WASD or Arrow Keys &nbsp; <b>Run:</b> hold Shift</p>
+    <p><b>Explore:</b> walk off the left or right edge outside</p>
     <p><b>Enter / exit ship:</b> walk up (W) into the door</p>
     <p><b>Interact (monitor, pick up, fill oxygen, attach):</b> E</p>
     <p><b>Hide this panel:</b> H &nbsp; <b>Hide objectives:</b> O</p>
@@ -61,16 +62,52 @@
       <button id="objectives-toggle" title="Hide / show objectives (O)">Hide</button>
     </div>
     <div id="objectives-body">
-      <p id="objective-oxygen"></p>
-      <p id="objective-fill"></p>
-      <p id="objective-device"></p>
-      <p id="objective-attach"></p>
+      <!-- game.js fills in the objectives (tutorial first, then the mission) -->
+      <div id="objective-list"></div>
       <p id="objective-hint"></p>
     </div>
   </div>
 
   <!-- 6. Pop-up message, e.g. "Oxygen tank collected!" -->
   <div id="message" class="hidden"></div>
+
+  <!-- Pause menu (Escape) -->
+  <div id="pause-menu" class="screen hidden">
+    <div class="tutorial-panel pause-panel">
+      <div id="pause-main">
+        <h2>&#9632; Paused &#9632;</h2>
+        <button id="resume-button" class="pixel-button">Resume</button>
+        <button id="options-button" class="pixel-button">Options</button>
+        <button id="main-menu-button" class="pixel-button">Main Screen</button>
+        <p class="pause-note">Going to the main screen starts the game over.</p>
+      </div>
+      <div id="pause-options" class="hidden">
+        <h2>&#9632; Controls &#9632;</h2>
+        <p class="pause-note">Click a control, then press the new key. (Arrow keys always move.)</p>
+        <!-- game.js fills this with one row per control -->
+        <div id="controls-table"></div>
+        <button id="reset-controls" class="pixel-button small">Reset to defaults</button>
+        <button id="options-back" class="pixel-button small">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mission complete message (shown when Laika brings the supplies) -->
+  <div id="mission-panel" class="screen hidden">
+    <div class="tutorial-panel">
+      <h2>&#9632; Mission Complete &#9632;</h2>
+      <p class="tutorial-done-title">SUPPLIES SECURED!</p>
+      <p class="tutorial-story">
+        Laika brought water and alien fruit to her human. These basic supplies
+        will help keep the astronaut alive.
+      </p>
+      <p class="tutorial-goal">
+        The astronaut is still unconscious... More adventures are on the way!
+        You can keep exploring the planet and growing food at the farm.
+      </p>
+      <button id="mission-close" class="pixel-button small">Close (E / Esc)</button>
+    </div>
+  </div>
 
   <!-- 7. Ship monitor tutorial (opened with E at the monitor) -->
   <div id="tutorial" class="screen hidden">

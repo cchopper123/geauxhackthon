@@ -36,9 +36,12 @@ This is an early version.
 - Storage room: through the main room's door with the blue O2 sign
 - Oxygen room: through the storage room's door with the green O2 FILL sign.
   The filling station fills (and later refills) Laika's oxygen
-- Oxygen meter (bottom-right): oxygen runs out slowly, faster outside. If it
-  runs out, Laika faints and wakes up in the oxygen room with a full meter
-- Treat counter (bottom-left)
+- Oxygen meter (bottom-right): it appears the first time Laika goes
+  outside. From then on oxygen runs out slowly (about 3.3 minutes inside,
+  100 seconds outside). If it runs out, Laika faints and wakes up in the
+  oxygen room with a full meter
+- Treat counter (bottom-left); after the tutorial it also shows alien fruit
+  and seeds
 - Tutorial missions, in order:
   1. Find the oxygen tank in the storage room (press E)
   2. Fill it at the filling station in the oxygen room (press E).
@@ -47,13 +50,60 @@ This is an early version.
   4. Bring it back to the ship and attach it to Laika (press E)
 - When all four are done, a "!" blinks above the ship monitor. Pressing E
   there shows "Tutorial Complete" and the next set of tasks
-  (add them to `NEXT_TASKS` in `game.js`)
+  (listed in `NEXT_TASKS` in `game.js`); after that the "!" goes away
+- Pause menu (Esc): Resume, Options (change any control; saved in the
+  browser) and Main Screen (starts the game over from the title screen)
+- Exploring: outside, walk off the left edge of the crash site to reach the
+  **Jungle**, or off the right edge to reach the **Lake**. Signs show the way.
+  Hold **Shift** to run (faster, with a quicker run animation and dust)
+
+### Mission: Keep the Astronaut Alive (after the tutorial)
+
+The objective tracker switches to this mission once the tutorial is done.
+
+Main mission (needed to finish):
+
+1. **Find a bucket in the spaceship** – it's in the storage room (press E).
+   Press **Q** to drop it anywhere, and E to pick it up again
+2. **Fill the bucket at the lake** – walk to the lake shore and press E.
+   The bucket shows water once it's full
+3. **Collect alien fruit (4 needed)** – fruit grows in the jungle, by the
+   lake and near the ship (press E). Farm fruit counts too
+4. **Return to the astronaut with the supplies** – press E next to her bed
+   to give her the water and the food (together or one at a time). Giving
+   water uses it up: the empty bucket disappears and reappears somewhere in
+   the ship. When both are given, a "Supplies Secured" message explains she
+   is still unconscious and that more adventures are coming
+
+Side objective: Start a Farm (optional):
+
+1. **Find seeds** – seeds in the jungle and at the lake (2 seeds each)
+2. **Dig a planting spot** – the farm is the three soil plots next to the ship
+3. **Plant the seeds** – press E on a dug plot. Each kind of seed grows a
+   different alien fruit
+4. **Water the plants** – seeds and sprouts only grow after Laika waters
+   them with a full bucket (press E). Watering empties the bucket, so refill
+   it at the lake. A blinking water drop shows which plants are thirsty
+5. **Grow and harvest alien fruit** – a watered seed sprouts after 15 s; the
+   watered sprout becomes a mature plant with fruit after 25 s. After a
+   harvest, new fruit grows back (30 s). Plants keep growing while Laika is
+   elsewhere
+
+The jungle has a giant alien tree Laika can inspect (press E).
+
+All collected items and farm progress are kept when Laika changes areas.
+After the mission, Laika can keep exploring and farming.
+
+Placeholder shapes are still used for the farm plants (stalks and sprouts)
+and the jungle's glowing plants. Numbers like
+`FRUIT_NEEDED`, the farm growth times and item positions are in the
+`MISSION: KEEP THE ASTRONAUT ALIVE` section near the top of `game.js`.
 - Objective tracker (top-right, can be hidden) with hints, plus pop-up messages
 - Treats are the game's currency: +1 Treat for each finished mission
 - Control instructions panel
 - The game scales to fit the browser window
 
-The next set of tasks and the ending (restoring life support) are not built yet.
+The ending (restoring life support / waking the astronaut) is not built yet.
 
 ## Controls
 
@@ -62,10 +112,19 @@ The next set of tasks and the ending (restoring life support) are not built yet.
 | Mouse click                  | Start / New Game buttons      |
 | Space / Enter / Next button  | Next line of dialogue         |
 | W A S D / Arrow keys         | Move Laika (gameplay only)    |
+| Hold Shift while moving      | Run                           |
+| Walk off the screen edge     | Go to the next outdoor area   |
 | Walk up into a door          | Enter / exit the ship         |
 | E (at the ship monitor)      | Open / close the tutorial     |
 | E (next to an item)          | Pick up the item              |
 | E (at the filling station)   | Fill / refill oxygen          |
+| E (at the lake / farm / bed) | Fill bucket, dig, plant, water, harvest, give supplies |
+| E (at the big tree)          | Inspect it                    |
+| Q                            | Drop the bucket               |
+| Esc                          | Pause menu (Resume / Options / Main Screen) |
+
+All of these keys (except Esc, Space/Enter and the arrow keys) can be
+changed in the pause menu under **Options**.
 | E (at the ship with device)  | Attach the device to Laika    |
 | Esc / Close button           | Close the tutorial            |
 | H                            | Show / hide controls panel    |
@@ -131,7 +190,14 @@ the top of `game.js`.
 | `assets/Planet ground.png` | Ground texture on the planet | Our team (add artist name) |
 | `assets/Oxygen tank.png` | Oxygen tank in the storage room, on Laika's back, the big tanks of the filling station, the oxygen meter icon, and the tutorial pictures | Our team (add artist name) |
 | `assets/Monitor.gif` | The ship monitor inside the ship that opens the tutorial (animated GIF, shown 2x) | Our team (add artist name) |
-| `assets/Laika.png` | Laika, the playable dachshund (sprite sheet: 1 column x 2 rows, both frames face left). Walking switches frames quickly; standing switches slowly for a tail wag. Also used in the tutorial pictures | Our team (add artist name) |
+| `assets/Laika.png` | Laika, the playable dachshund (sprite sheet: 1 column x 2 rows, both frames face left). Standing switches frames slowly for a tail wag. Also used in the tutorial pictures, and her face is cut from it for her dialogue portrait | Our team (add artist name) |
+| `assets/Alien fruits.png` | The alien fruit: on the ground, on farm plants, and the HUD icon (sheet of 16 fruits) | Our team (add artist name) |
+| `assets/seeds.png` | The alien seeds on the ground and the HUD icon (4 x 4 grid; seed N grows fruit N) | Our team (add artist name) |
+| `assets/Bucket.png` | The water bucket (water is drawn in it when full) | Our team (add artist name) |
+| `assets/Lake.png` | The lake in the Lake area | Our team (add artist name) |
+| `assets/Big Tree.png` | The giant tree in the jungle (black background, drawn with "lighten" like the other trees) | Our team (add artist name) |
+| `assets/dog treat.png` | The treat icon in the HUD and the tutorial pictures | Our team (add artist name) |
+| `assets/Astronaut face icon.png` | The astronaut's dialogue portrait | Our team (add artist name) |
 | `assets/Laikia walking.png` | Laika's walking animation (sprite sheet: 1 column x 3 rows, all facing left; played 1-2-3-2 while she moves) | Our team (add artist name) |
 | `assets/Astronaut frames.png` | The unconscious astronaut lying on the bed (sprite sheet: 30 columns x 5 rows; one "lying on her back" frame from the falling-down row is used, because she can't move) | Our team (add artist name) |
 | `assets/Radio.png` | The communication device: on the ground, in Laika's mouth, on her side, and in the tutorial pictures | Our team (add artist name) |

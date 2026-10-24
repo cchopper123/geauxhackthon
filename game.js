@@ -8,6 +8,7 @@
 //   "cutscene" -> crash animation and dialogue
 //   "play"     -> the player controls Laika
 //   "tutorial" -> ship monitor tutorial is open (Laika can't move)
+//   "story"    -> a mission message is open, e.g. "Supplies Secured" (Laika can't move)
 // =============================================
 
 // ----- Canvas setup -----
@@ -72,8 +73,40 @@ const images = {
   radio: loadImage("assets/Radio.png"),
   astronaut: loadImage("assets/Astronaut frames.png"),
   interiorFurniture: loadImage("assets/Interior (1).png"),
-  interiorWalls: loadImage("assets/Interior (2).png")
+  interiorWalls: loadImage("assets/Interior (2).png"),
+  alienFruits: loadImage("assets/Alien fruits.png"),
+  seeds: loadImage("assets/seeds.png"),
+  bucket: loadImage("assets/Bucket.png"),
+  dogTreat: loadImage("assets/dog treat.png"),
+  astronautFace: loadImage("assets/Astronaut face icon.png"),
+  bigTree: loadImage("assets/Big Tree.png"),
+  lake: loadImage("assets/Lake.png")
 };
+
+// "Alien fruits.png" is a sheet of 16 fruits (4 rows of 4, loosely packed).
+// These are the boxes around each fruit, in reading order (fruit 0 to 15).
+const FRUIT_SPRITES = [
+  { x: 74, y: 74, width: 71, height: 71 }, { x: 168, y: 74, width: 75, height: 75 },
+  { x: 257, y: 78, width: 79, height: 67 }, { x: 351, y: 70, width: 79, height: 83 },
+  { x: 78, y: 175, width: 63, height: 64 }, { x: 172, y: 164, width: 63, height: 79 },
+  { x: 257, y: 175, width: 83, height: 64 }, { x: 351, y: 171, width: 79, height: 72 },
+  { x: 74, y: 257, width: 71, height: 79 }, { x: 164, y: 257, width: 79, height: 79 },
+  { x: 261, y: 257, width: 71, height: 83 }, { x: 355, y: 261, width: 71, height: 79 },
+  { x: 78, y: 359, width: 71, height: 71 }, { x: 160, y: 347, width: 86, height: 87 },
+  { x: 265, y: 351, width: 71, height: 83 }, { x: 351, y: 351, width: 83, height: 87 }
+];
+
+// "seeds.png" is a 4 x 4 grid of seeds, each in a 125 x 125 square.
+// Seed number N grows fruit number N from "Alien fruits.png".
+function seedSprite(type) {
+  return { x: (type % 4) * 125, y: Math.floor(type / 4) * 125, width: 125, height: 125 };
+}
+
+const BUCKET_CROP = { x: 131, y: 138, width: 238, height: 224 };
+const TREAT_CROP = { x: 16, y: 16, width: 224, height: 232 };
+// Dialogue portraits: the astronaut's helmet and chest, and Laika's face
+const ASTRONAUT_FACE_CROP = { x: 148, y: 69, width: 195, height: 195 };
+const LAIKA_FACE_CROP = { x: 37, y: 20, width: 230, height: 230 }; // from Laika.png
 
 // The part of "Radio.png" that has the radio in it
 const RADIO_CROP = { x: 175, y: 64, width: 150, height: 372 };
@@ -212,10 +245,7 @@ tutorialCtx.imageSmoothingEnabled = false; // keep images sharp in the tutorial 
 const tutorialCaption = document.getElementById("tutorial-caption");
 const tutorialClose = document.getElementById("tutorial-close");
 const objectivesPanel = document.getElementById("objectives");
-const objectiveOxygen = document.getElementById("objective-oxygen");
-const objectiveDevice = document.getElementById("objective-device");
-const objectiveAttach = document.getElementById("objective-attach");
-const objectiveFill = document.getElementById("objective-fill");
+const objectiveList = document.getElementById("objective-list");
 const objectiveHint = document.getElementById("objective-hint");
 const messageBox = document.getElementById("message");
 const objectivesBody = document.getElementById("objectives-body");
@@ -277,7 +307,32 @@ function portraitRect(x, y, w, h, color) {
   portraitCtx.fillRect(x, y, w, h);
 }
 
+// Draws a face image to fill the 96x96 portrait. flip = mirror it.
+// Returns false if the image isn't loaded (then the placeholder is drawn).
+function drawPortraitImage(image, crop, flip) {
+  if (!imageReady(image)) {
+    return false;
+  }
+  portraitCtx.setTransform(1, 0, 0, 1, 0, 0);
+  portraitCtx.imageSmoothingEnabled = false;
+  portraitCtx.fillStyle = "#1a0b33";
+  portraitCtx.fillRect(0, 0, 96, 96);
+  portraitCtx.save();
+  if (flip) {
+    portraitCtx.translate(96, 0);
+    portraitCtx.scale(-1, 1);
+  }
+  portraitCtx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 4, 4, 88, 88);
+  portraitCtx.restore();
+  return true;
+}
+
 function drawAstronautPortrait() {
+  // Team artwork: Astronaut face icon.png (her helmet and chest)
+  if (drawPortraitImage(images.astronautFace, ASTRONAUT_FACE_CROP, false)) {
+    return;
+  }
+  portraitCtx.setTransform(3, 0, 0, 3, 0, 0); // placeholder is drawn at 32x32, shown 3x
   portraitRect(0, 0, 32, 32, "#1a0b33");      // background
   // Helmet
   portraitRect(8, 2, 16, 2, "#e0e0e0");
@@ -301,6 +356,11 @@ function drawAstronautPortrait() {
 }
 
 function drawLaikaPortrait() {
+  // Team artwork: Laika's face, cut from Laika.png and flipped to face the text
+  if (drawPortraitImage(images.laika, LAIKA_FACE_CROP, true)) {
+    return;
+  }
+  portraitCtx.setTransform(3, 0, 0, 3, 0, 0); // placeholder is drawn at 32x32, shown 3x
   portraitRect(0, 0, 32, 32, "#1a0b33");      // background
   portraitRect(8, 20, 10, 12, "#8b4a1f");     // neck
   portraitRect(8, 10, 14, 10, "#8b4a1f");     // head
@@ -348,9 +408,9 @@ const CRASH_DEBRIS = [
   { x: 8, y: 140, width: 10, height: 4, color: "#6b7380", rock: 7 },
   { x: 15, y: 156, width: 7, height: 3, color: "#555b66", rock: 3 },
   { x: 110, y: 145, width: 8, height: 3, color: "#8a919c", rock: 2 },
-  { x: 125, y: 161, width: 5, height: 4, color: "#b8c0cc", rock: 8 },
-  { x: 150, y: 150, width: 10, height: 4, color: "#6b7380", rock: 1 },
-  { x: 182, y: 170, width: 4, height: 3, color: "#b8c0cc", rock: 7 },
+  { x: 100, y: 170, width: 5, height: 4, color: "#b8c0cc", rock: 8 },
+  { x: 240, y: 138, width: 10, height: 4, color: "#6b7380", rock: 1 },
+  { x: 204, y: 172, width: 4, height: 3, color: "#b8c0cc", rock: 7 },
   { x: 215, y: 158, width: 9, height: 3, color: "#8a919c", rock: 0 },
   { x: 248, y: 169, width: 6, height: 4, color: "#555b66", rock: 8 },
   { x: 252, y: 150, width: 12, height: 3, color: "#6b7380", rock: 3 },
@@ -368,17 +428,75 @@ const cutscene = {
   ending: false   // true while fading out to gameplay
 };
 
+// ----- Controls (can be changed in the pause menu: Esc > Options) -----
+// Each action and the key it uses. The arrow keys always move too.
+const DEFAULT_CONTROLS = {
+  up: "w", down: "s", left: "a", right: "d",
+  interact: "e", run: "shift", drop: "q",
+  objectives: "o", help: "h"
+};
+const CONTROL_NAMES = {
+  up: "Move up", down: "Move down", left: "Move left", right: "Move right",
+  interact: "Interact", run: "Run (hold)", drop: "Drop bucket",
+  objectives: "Hide objectives", help: "Hide controls panel"
+};
+let controls = Object.assign({}, DEFAULT_CONTROLS);
+// Load the player's saved controls, if any (browsers can block this, so try/catch)
+try {
+  const saved = JSON.parse(localStorage.getItem("wienerDogControls"));
+  if (saved) {
+    controls = Object.assign(controls, saved);
+  }
+} catch (error) {
+  // no saved controls; keep the defaults
+}
+function saveControls() {
+  try {
+    localStorage.setItem("wienerDogControls", JSON.stringify(controls));
+  } catch (error) {
+    // saving isn't allowed here; the new keys still work until the page reloads
+  }
+}
+let waitingForKey = null; // the action being changed in the Options menu
+
 // ----- Keyboard input -----
 // keys["arrowleft"] is true while that key is held down
 const keys = {};
 
 window.addEventListener("keydown", function (event) {
   const key = event.key.toLowerCase();
+
+  // Options menu: the next key pressed becomes the new key for that action
+  if (waitingForKey) {
+    event.preventDefault();
+    if (key !== "escape") {
+      controls[waitingForKey] = key;
+      saveControls();
+      updateControlsText();
+    }
+    waitingForKey = null;
+    buildControlsTable();
+    return;
+  }
+
   keys[key] = true;
 
   // Stop arrow keys and Space from scrolling the page
   if (event.key.startsWith("Arrow") || key === " ") {
     event.preventDefault();
+  }
+
+  // Escape opens / closes the pause menu (and still closes the monitor
+  // and mission messages, as before)
+  if (key === "escape" && !event.repeat) {
+    if (state === "paused") {
+      resumeGame();
+      return;
+    }
+    if (state === "play" || state === "cutscene") {
+      pauseGame();
+      return;
+    }
   }
 
   // Space or Enter advances the dialogue (ignore keys held down)
@@ -389,25 +507,30 @@ window.addEventListener("keydown", function (event) {
     }
   }
 
-  // Press H during gameplay to show/hide the controls panel
-  if (state === "play" && key === "h") {
+  // During gameplay: show/hide the controls panel, the objectives list,
+  // and drop the bucket
+  if (state === "play" && key === controls.help && !event.repeat) {
     controlsPanel.classList.toggle("hidden");
   }
-
-  // Press O during gameplay to hide/show the objectives list
-  if (state === "play" && key === "o" && !event.repeat) {
+  if (state === "play" && key === controls.objectives && !event.repeat) {
     toggleObjectives();
   }
+  if (state === "play" && key === controls.drop && !event.repeat) {
+    dropBucket();
+  }
 
-  // E interacts with whatever Laika is next to. E or Escape closes the tutorial.
+  // The interact key uses whatever Laika is next to. It (or Escape) also
+  // closes the monitor and mission messages.
   if (!event.repeat) {
-    if (state === "play" && key === "e") {
+    if (state === "play" && key === controls.interact) {
       const interaction = getInteraction();
       if (interaction) {
         interaction.action();
       }
-    } else if (state === "tutorial" && (key === "e" || key === "escape")) {
+    } else if (state === "tutorial" && (key === controls.interact || key === "escape")) {
       closeTutorial();
+    } else if (state === "story" && (key === controls.interact || key === "escape")) {
+      closeMissionPanel();
     }
   }
 });
@@ -415,6 +538,103 @@ window.addEventListener("keydown", function (event) {
 window.addEventListener("keyup", function (event) {
   keys[event.key.toLowerCase()] = false;
 });
+
+// True while the key for an action is held (arrow keys also move)
+function holding(action) {
+  const arrows = { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" };
+  return keys[controls[action]] === true || (arrows[action] !== undefined && keys[arrows[action]] === true);
+}
+
+// ----- Pause menu (Escape) -----
+let stateBeforePause = "play";
+const pauseMenu = document.getElementById("pause-menu");
+
+function pauseGame() {
+  stateBeforePause = state;
+  state = "paused"; // update() stops, so everything freezes
+  pauseMenu.classList.remove("hidden");
+  showPausePage("main");
+}
+
+function resumeGame() {
+  state = stateBeforePause;
+  waitingForKey = null;
+  pauseMenu.classList.add("hidden");
+  // Forget held keys, so Laika doesn't keep walking by herself
+  for (const name in keys) {
+    keys[name] = false;
+  }
+}
+
+// "main" = Resume / Options / Main Screen, "options" = change controls
+function showPausePage(page) {
+  document.getElementById("pause-main").classList.toggle("hidden", page !== "main");
+  document.getElementById("pause-options").classList.toggle("hidden", page !== "options");
+  if (page === "options") {
+    buildControlsTable();
+  }
+}
+
+// A readable name for a key, e.g. " " -> "Space", "e" -> "E"
+function keyName(key) {
+  if (key === " ") return "Space";
+  if (key.startsWith("arrow")) return key.replace("arrow", "Arrow ");
+  return key.length === 1 ? key.toUpperCase() : key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+// The Options page: one row per action, with a button showing its key.
+// Click a button, then press the new key.
+function buildControlsTable() {
+  const table = document.getElementById("controls-table");
+  table.innerHTML = "";
+  for (const action in DEFAULT_CONTROLS) {
+    const row = document.createElement("div");
+    row.className = "control-row";
+    const name = document.createElement("span");
+    name.textContent = CONTROL_NAMES[action];
+    const button = document.createElement("button");
+    button.className = "pixel-button small";
+    button.textContent = waitingForKey === action ? "Press a key..." : keyName(controls[action]);
+    button.addEventListener("click", function () {
+      waitingForKey = action;
+      button.blur();
+      buildControlsTable();
+    });
+    row.appendChild(name);
+    row.appendChild(button);
+    table.appendChild(row);
+  }
+}
+
+// Writes the current keys into the controls panel (top-left)
+function updateControlsText() {
+  const k = function (action) { return keyName(controls[action]); };
+  controlsPanel.innerHTML =
+    "<h1>Wiener Dog in Space</h1>" +
+    "<p>You play as <b>Laika</b> the dachshund.</p>" +
+    "<p>The astronaut is unconscious inside the ship and can't move.</p>" +
+    "<p><b>Move:</b> " + k("up") + k("left") + k("down") + k("right") + " or Arrow Keys &nbsp; <b>Run:</b> hold " + k("run") + "</p>" +
+    "<p><b>Explore:</b> walk off the left or right edge outside</p>" +
+    "<p><b>Enter / exit ship:</b> walk up into the door</p>" +
+    "<p><b>Interact:</b> " + k("interact") + " &nbsp; <b>Drop bucket:</b> " + k("drop") + "</p>" +
+    "<p><b>Hide this panel:</b> " + k("help") + " &nbsp; <b>Hide objectives:</b> " + k("objectives") + "</p>" +
+    "<p><b>Pause menu:</b> Esc</p>";
+}
+
+document.getElementById("resume-button").addEventListener("click", resumeGame);
+document.getElementById("options-button").addEventListener("click", function () { showPausePage("options"); });
+document.getElementById("options-back").addEventListener("click", function () { showPausePage("main"); });
+document.getElementById("reset-controls").addEventListener("click", function () {
+  controls = Object.assign({}, DEFAULT_CONTROLS);
+  saveControls();
+  updateControlsText();
+  buildControlsTable();
+});
+document.getElementById("main-menu-button").addEventListener("click", function () {
+  // Going back to the title screen starts fresh, like opening the game again
+  window.location.reload();
+});
+updateControlsText();
 
 // ----- Buttons -----
 startButton.addEventListener("click", function () {
@@ -432,6 +652,7 @@ dialogueNext.addEventListener("click", function () {
 });
 
 tutorialClose.addEventListener("click", closeTutorial);
+document.getElementById("mission-close").addEventListener("click", closeMissionPanel);
 
 // Hides the objectives list (the small "Objectives" title stays so it can be reopened)
 function toggleObjectives() {
@@ -457,8 +678,11 @@ const dog = {
   width: 26, // size of the Laika sprite on screen (nose to tail)
   height: 18,
   speed: 60, // game pixels per second
-  facing: 1  // 1 = facing right, -1 = facing left
+  facing: 1, // 1 = facing right, -1 = facing left
+  running: false // true while Shift is held and she is moving
 };
+
+const RUN_SPEED = 1.8; // running is this many times faster than walking
 
 // The crashed ship (outside view)
 const ship = {
@@ -528,9 +752,10 @@ const oxygenFiller = {
 // Laika's oxygen goes from 100 (full) to 0 (empty). It runs out slowly,
 // faster outside the ship. Refill it at the filling station.
 let oxygen = 100;
-const OXYGEN_DRAIN_INSIDE = 0.35;  // per second inside the ship (about 4.5 minutes from full)
-const OXYGEN_DRAIN_OUTSIDE = 0.8;  // per second outside (about 2 minutes from full)
+const OXYGEN_DRAIN_INSIDE = 0.5;   // per second inside the ship (about 3.3 minutes from full)
+const OXYGEN_DRAIN_OUTSIDE = 1.0;  // per second outside (100 seconds from full)
 let lowOxygenWarned = false;       // so the "oxygen low" message only shows once
+let oxygenUnlocked = false;        // the meter appears (and oxygen starts running out) once Laika goes outside
 
 // Crates in the storage room. y = bottom of the crate.
 // sprite = which cabinet from INTERIOR is drawn (at 3/4 of its size)
@@ -560,6 +785,88 @@ const commDevice = {
   attached: false   // attached to Laika at the ship
 };
 
+// =============================================
+// MISSION: KEEP THE ASTRONAUT ALIVE (after the tutorial)
+// Edit this section to move items or change the numbers.
+// =============================================
+
+// The planet has three outdoor areas side by side. Walk off the left or
+// right edge of the screen to go to the next one.
+const OUTDOOR_LINKS = {
+  jungle: { right: "outside" },
+  outside: { left: "jungle", right: "lake" }, // "outside" = the crash site
+  lake: { left: "outside" }
+};
+
+function isOutdoors(scene) {
+  return scene === "outside" || scene === "jungle" || scene === "lake";
+}
+
+// Water: a bucket that starts in the storage room. Laika carries it in her
+// mouth (collected = true), can drop it anywhere (Q), and pick it up again.
+const bucket = {
+  scene: "storage", x: 66, y: 162, // where it is when it's on the ground
+  collected: false, // Laika is carrying it
+  filled: false,    // it has water in it right now
+  found: false,     // Laika has picked it up at least once
+  filledOnce: false // Laika has filled it at the lake at least once
+};
+// Places in the ship where the empty bucket can reappear after Laika
+// gives the water to the astronaut
+const BUCKET_SPAWNS = [
+  { scene: "inside", x: 60, y: 150 },
+  { scene: "storage", x: 66, y: 162 },
+  { scene: "oxygenRoom", x: 110, y: 160 }
+];
+const lake = { x: 190, y: 154, radiusX: 70, radiusY: 15 }; // in the "lake" area
+// Where Lake.png is drawn (it's flattened a little to fit the ground)
+const LAKE_IMAGE = { x: 115, y: 128, width: 150, height: 44, crop: { x: 73, y: 132, width: 342, height: 236 } };
+
+// Food: strange alien fruit around the planet. (x, y) = bottom center.
+// type = which fruit from "Alien fruits.png" (0 to 15)
+const FRUIT_NEEDED = 4;
+let fruitCount = 0; // alien fruit Laika has (picked or harvested)
+const alienFruits = [
+  { scene: "outside", x: 195, y: 140, type: 0, collected: false },
+  { scene: "jungle", x: 60, y: 150, type: 4, collected: false },
+  { scene: "jungle", x: 150, y: 172, type: 9, collected: false },
+  { scene: "jungle", x: 130, y: 160, type: 14, collected: false },
+  { scene: "lake", x: 88, y: 152, type: 6, collected: false },
+  { scene: "lake", x: 290, y: 156, type: 11, collected: false }
+];
+
+// Seeds for the farm. Each pod holds a few seeds of one kind; each kind
+// of seed grows a different fruit (seed type N grows fruit type N).
+let seedBag = [];       // the seed types Laika is carrying, e.g. [1, 1, 2]
+let seedsFound = false; // has she ever found seeds?
+const seedPods = [
+  { scene: "jungle", x: 112, y: 142, type: 1, count: 2, collected: false },
+  { scene: "lake", x: 300, y: 142, type: 2, count: 2, collected: false }
+];
+
+// The farm: three soil plots next to the crashed ship.
+// stage: "empty" -> "dug" -> "seed" -> "sprout" -> "mature"
+// Seeds and sprouts only grow after Laika waters them with a full bucket.
+// timer counts seconds in the current stage, so plants keep growing
+// wherever Laika goes.
+const FARM_SPROUT_TIME = 15;  // seconds from watered seed to sprout
+const FARM_MATURE_TIME = 25;  // seconds from watered sprout to mature plant
+const FARM_REGROW_TIME = 30;  // seconds for new fruit after a harvest
+const farmPlots = [
+  { x: 128, y: 160, stage: "empty", timer: 0, watered: false, fruitType: 0, fruitReady: false },
+  { x: 158, y: 160, stage: "empty", timer: 0, watered: false, fruitType: 0, fruitReady: false },
+  { x: 188, y: 160, stage: "empty", timer: 0, watered: false, fruitType: 0, fruitReady: false }
+];
+let farmWatered = false;   // has she watered a plant at least once?
+let farmHarvested = false; // has she harvested at least once?
+
+// The big tree in the jungle (Big Tree.png). Laika can inspect it.
+const bigTree = { x: 30, size: 128, trunkX: 92, inspected: false };
+
+let waterGiven = false;      // Laika gave the astronaut water
+let foodGiven = false;       // Laika gave the astronaut food
+let mainMissionDone = false; // both water and food were given
+
 // "Solid" areas the dog can't walk through, one list per scene.
 // These are the parts of objects that touch the floor (their "footprint").
 const solids = {
@@ -577,6 +884,14 @@ const solids = {
   oxygenRoom: [
     // The filling station: Laika stops in front of it
     { x: oxygenFiller.x, y: INSIDE_FLOOR_TOP, width: oxygenFiller.width, height: 14 }
+  ],
+  jungle: [
+    // The big tree's trunk
+    { x: bigTree.trunkX - 14, y: GROUND_TOP + 2, width: 28, height: 8 }
+  ],
+  lake: [
+    // The water: Laika walks around the shore, not into the lake
+    { x: lake.x - lake.radiusX + 6, y: lake.y - lake.radiusY + 1, width: lake.radiusX * 2 - 12, height: lake.radiusY * 2 - 2 }
   ]
 };
 for (const crate of crates) {
@@ -781,32 +1096,48 @@ function updatePlay(deltaTime) {
   let moveX = 0;
   let moveY = 0;
 
-  if (keys["arrowleft"] || keys["a"]) moveX -= 1;
-  if (keys["arrowright"] || keys["d"]) moveX += 1;
-  if (keys["arrowup"] || keys["w"]) moveY -= 1;
-  if (keys["arrowdown"] || keys["s"]) moveY += 1;
+  if (holding("left")) moveX -= 1;
+  if (holding("right")) moveX += 1;
+  if (holding("up")) moveY -= 1;
+  if (holding("down")) moveY += 1;
 
   if (moveX !== 0) {
     dog.facing = moveX;
   }
 
   // The floor area the dog can walk on depends on the scene
-  const floorTop = currentScene === "outside" ? GROUND_TOP : INSIDE_FLOOR_TOP;
+  const floorTop = isOutdoors(currentScene) ? GROUND_TOP : INSIDE_FLOOR_TOP;
   const minY = floorTop + 4;
   const maxY = GAME_HEIGHT - 4;
 
+  // Hold Shift to run
+  dog.running = holding("run") && (moveX !== 0 || moveY !== 0);
+  const speed = dog.speed * (dog.running ? RUN_SPEED : 1);
+
   // Move left/right first. If that walks into something solid, undo it.
   const oldX = dog.x;
-  dog.x = clamp(dog.x + moveX * dog.speed * deltaTime, 0, GAME_WIDTH - dog.width);
+  dog.x = clamp(dog.x + moveX * speed * deltaTime, 0, GAME_WIDTH - dog.width);
   if (dogHitsSolid()) {
     dog.x = oldX;
   }
 
   // Then move up/down the same way
   const oldY = dog.y;
-  dog.y = clamp(dog.y + moveY * dog.speed * 0.6 * deltaTime, minY, maxY);
+  dog.y = clamp(dog.y + moveY * speed * 0.6 * deltaTime, minY, maxY);
   if (dogHitsSolid()) {
     dog.y = oldY;
+  }
+
+  // Outdoors: walking off the left or right edge goes to the next area
+  const links = OUTDOOR_LINKS[currentScene];
+  if (links) {
+    if (moveX < 0 && dog.x <= 0 && links.left) {
+      currentScene = links.left;
+      dog.x = GAME_WIDTH - dog.width - 2; // come in from the right edge
+    } else if (moveX > 0 && dog.x >= GAME_WIDTH - dog.width && links.right) {
+      currentScene = links.right;
+      dog.x = 2; // come in from the left edge
+    }
   }
 
   // After going through a door, the player must let go of UP before
@@ -867,12 +1198,39 @@ function updatePlay(deltaTime) {
   attachEffectTime = Math.max(0, attachEffectTime - deltaTime);
 
   updateOxygen(deltaTime);
+  updateFarm(deltaTime);
+}
+
+// Plants grow over time, even when Laika is somewhere else
+function updateFarm(deltaTime) {
+  for (const plot of farmPlots) {
+    plot.timer += deltaTime;
+    if ((plot.stage === "seed" || plot.stage === "sprout") && !plot.watered) {
+      plot.timer = 0; // dry plants don't grow; they wait for water
+    } else if (plot.stage === "seed" && plot.timer >= FARM_SPROUT_TIME) {
+      plot.stage = "sprout";
+      plot.timer = 0;
+      plot.watered = false; // the sprout needs water again
+    } else if (plot.stage === "sprout" && plot.timer >= FARM_MATURE_TIME) {
+      plot.stage = "mature";
+      plot.fruitReady = true;
+      plot.timer = 0;
+    } else if (plot.stage === "mature" && !plot.fruitReady && plot.timer >= FARM_REGROW_TIME) {
+      plot.fruitReady = true; // new fruit grows back after a harvest
+    }
+  }
 }
 
 // Oxygen slowly runs out (faster outside). If it reaches 0, Laika faints
 // and wakes up in the oxygen room with a full meter.
 function updateOxygen(deltaTime) {
-  const drain = currentScene === "outside" ? OXYGEN_DRAIN_OUTSIDE : OXYGEN_DRAIN_INSIDE;
+  if (isOutdoors(currentScene)) {
+    oxygenUnlocked = true; // the first trip outside turns on the oxygen meter
+  }
+  if (!oxygenUnlocked) {
+    return; // no oxygen meter yet, so nothing runs out
+  }
+  const drain = isOutdoors(currentScene) ? OXYGEN_DRAIN_OUTSIDE : OXYGEN_DRAIN_INSIDE;
   oxygen = Math.max(0, oxygen - drain * deltaTime);
 
   if (oxygen <= 25 && !lowOxygenWarned) {
@@ -943,7 +1301,253 @@ function getInteraction() {
   if (commDevice.collected && !commDevice.attached && dogAtShip()) {
     return { text: "Press E: attach device", x: dog.x + dog.width / 2, y: dog.y - dog.height - 8, action: attachDevice };
   }
+
+  // ----- Mission: Keep the Astronaut Alive -----
+  if (!bucket.collected && dogNear(bucket)) {
+    const text = bucket.found ? "Press E: pick up bucket" : "Press E: take bucket";
+    return { text: text, x: bucket.x, y: bucket.y - 14, action: collectBucket };
+  }
+  if (dogNearLake()) {
+    const x = dog.x + dog.width / 2;
+    const y = dog.y - dog.height - 8;
+    if (!bucket.collected) {
+      return { text: "Press E: lake", x: x, y: y, action: function () {
+        showMessage(bucket.found ? "Laika needs to carry the bucket to get water."
+                                 : "Laika needs a bucket to carry water. Check the ship's storage room!");
+      } };
+    }
+    if (!bucket.filled) {
+      return { text: "Press E: fill bucket", x: x, y: y, action: fillBucket };
+    }
+  }
+  for (const fruit of alienFruits) {
+    if (!fruit.collected && dogNear(fruit)) {
+      return { text: "Press E: pick alien fruit", x: fruit.x, y: fruit.y - 14, action: function () { collectFruit(fruit); } };
+    }
+  }
+  for (const pod of seedPods) {
+    if (!pod.collected && dogNear(pod)) {
+      return { text: "Press E: take seeds", x: pod.x, y: pod.y - 12, action: function () { collectSeeds(pod); } };
+    }
+  }
+  if (dogNearBigTree()) {
+    return { text: "Press E: inspect tree", x: bigTree.trunkX, y: GROUND_TOP - 20, action: inspectBigTree };
+  }
+  for (const plot of farmPlots) {
+    if (dogNearPlot(plot)) {
+      return farmInteraction(plot);
+    }
+  }
+  if (dogNearBed() && tutorialDone() && !mainMissionDone) {
+    const canGiveWater = bucket.collected && bucket.filled && !waterGiven;
+    const canGiveFood = fruitCount >= FRUIT_NEEDED && !foodGiven;
+    if (canGiveWater || canGiveFood) {
+      return { text: "Press E: give supplies", x: cot.x + cot.width / 2, y: cot.y - 62, action: giveSupplies };
+    }
+    return { text: "Press E: check on her", x: cot.x + cot.width / 2, y: cot.y - 62, action: function () {
+      showMessage("She's still unconscious. " + stillNeeded());
+    } };
+  }
   return null;
+}
+
+// What the astronaut still needs, as a sentence
+function stillNeeded() {
+  if (!waterGiven && !foodGiven) return "Laika needs to bring her water and food.";
+  if (!waterGiven) return "She still needs water.";
+  return "She still needs food (" + Math.min(fruitCount, FRUIT_NEEDED) + "/" + FRUIT_NEEDED + " fruit).";
+}
+
+// True when Laika is standing at the foot of the big tree in the jungle
+function dogNearBigTree() {
+  return currentScene === "jungle" &&
+         Math.abs(dog.x + dog.width / 2 - bigTree.trunkX) < 30 &&
+         dog.y < GROUND_TOP + 22;
+}
+
+function inspectBigTree() {
+  bigTree.inspected = true;
+  showMessage("A giant alien tree! Its bark hums softly, and something rustles in the hollow...");
+}
+
+// Laika drops whatever bucket she is carrying where she stands (Q)
+function dropBucket() {
+  if (!bucket.collected) {
+    return;
+  }
+  bucket.collected = false;
+  bucket.scene = currentScene;
+  bucket.x = dog.x + dog.width / 2;
+  bucket.y = dog.y;
+  showMessage(bucket.filled ? "Laika put down the bucket of water." : "Laika put down the empty bucket.");
+}
+
+// True when Laika is on the shore of the lake
+function dogNearLake() {
+  const middle = dog.x + dog.width / 2;
+  return currentScene === "lake" &&
+         middle > lake.x - lake.radiusX - 16 && middle < lake.x + lake.radiusX + 16 &&
+         dog.y > lake.y - lake.radiusY - 8 && dog.y < lake.y + lake.radiusY + 10;
+}
+
+// True when Laika is right next to the astronaut's bed
+function dogNearBed() {
+  return currentScene === "inside" &&
+         dog.x + dog.width > cot.x - 8 && dog.x < cot.x + cot.width + 8 &&
+         dog.y > cot.y - 44 && dog.y < cot.y + 12;
+}
+
+// True when Laika is standing on a farm plot
+function dogNearPlot(plot) {
+  const middle = dog.x + dog.width / 2;
+  return currentScene === "outside" && Math.abs(middle - plot.x) < 12 && Math.abs(dog.y - plot.y) < 7;
+}
+
+function collectBucket() {
+  bucket.collected = true;
+  if (!bucket.found) {
+    bucket.found = true;
+    showMessage("Laika found a bucket! Fill it with water at the lake. (Q drops it)");
+  } else {
+    showMessage(bucket.filled ? "Laika picked up the bucket of water." : "Laika picked up the bucket.");
+  }
+  updateObjectives();
+}
+
+function fillBucket() {
+  bucket.filled = true;
+  if (!bucket.filledOnce) {
+    bucket.filledOnce = true;
+    treats += 1;
+    showMessage("The bucket is full of water! +1 Treat");
+  } else {
+    showMessage("The bucket is full of water!");
+  }
+  updateObjectives();
+}
+
+function collectFruit(fruit) {
+  fruit.collected = true;
+  fruitCount += 1;
+  if (fruitCount === FRUIT_NEEDED && !foodGiven) {
+    treats += 1;
+    showMessage("That's enough food for the astronaut! +1 Treat");
+  } else {
+    showMessage("Alien fruit! (" + Math.min(fruitCount, FRUIT_NEEDED) + "/" + FRUIT_NEEDED + ")");
+  }
+  updateObjectives();
+}
+
+function collectSeeds(pod) {
+  pod.collected = true;
+  for (let i = 0; i < pod.count; i++) {
+    seedBag.push(pod.type);
+  }
+  seedsFound = true;
+  showMessage("Laika found " + pod.count + " alien seeds! Plant them at the farm by the ship.");
+  updateObjectives();
+}
+
+// What pressing E does on a farm plot, depending on how far it has grown
+function farmInteraction(plot) {
+  const x = plot.x;
+  const y = plot.y - 22;
+  if (plot.stage === "empty") {
+    return { text: "Press E: dig", x: x, y: y, action: function () {
+      plot.stage = "dug";
+      plot.timer = 0;
+      showMessage("Laika dug a planting spot!");
+      updateObjectives();
+    } };
+  }
+  if (plot.stage === "dug") {
+    return { text: "Press E: plant seeds", x: x, y: y, action: function () {
+      if (seedBag.length === 0) {
+        showMessage("Laika needs seeds to plant. Look around the planet!");
+        return;
+      }
+      plot.fruitType = seedBag.shift(); // this kind of seed grows this kind of fruit
+      plot.stage = "seed";
+      plot.timer = 0;
+      plot.watered = false;
+      showMessage("Seed planted! Now water it with a full bucket.");
+      updateObjectives();
+    } };
+  }
+  if ((plot.stage === "seed" || plot.stage === "sprout") && !plot.watered) {
+    // Plants need water to grow
+    if (bucket.collected && bucket.filled) {
+      return { text: "Press E: water plant", x: x, y: y, action: function () {
+        plot.watered = true;
+        plot.timer = 0;
+        bucket.filled = false; // watering uses up the bucket of water
+        farmWatered = true;
+        showMessage("Laika watered the plant! The bucket is empty - refill it at the lake.");
+        updateObjectives();
+      } };
+    }
+    return { text: "Press E: check plant", x: x, y: y, action: function () {
+      showMessage("It needs water to grow! Bring a full bucket from the lake.");
+    } };
+  }
+  if (plot.stage === "mature" && plot.fruitReady) {
+    return { text: "Press E: harvest", x: x, y: y, action: function () {
+      plot.fruitReady = false;
+      plot.timer = 0;
+      fruitCount += 1;
+      if (!farmHarvested) {
+        farmHarvested = true;
+        treats += 1;
+        showMessage("Laika harvested farm fruit! It will grow more. +1 Treat");
+      } else {
+        showMessage("More alien fruit from the farm!");
+      }
+      updateObjectives();
+    } };
+  }
+  return { text: "Press E: check plant", x: x, y: y, action: function () {
+    showMessage(plot.stage === "mature" ? "New fruit is still growing..." : "It's still growing. Come back later!");
+  } };
+}
+
+// Laika gives the astronaut whatever she has: the bucket of water and/or
+// enough fruit. When both have been given, the mission is complete.
+function giveSupplies() {
+  const gave = [];
+  if (bucket.collected && bucket.filled && !waterGiven) {
+    waterGiven = true;
+    gave.push("water");
+    // The water is used up. The empty bucket goes back somewhere in the ship.
+    const spot = BUCKET_SPAWNS[Math.floor(Math.random() * BUCKET_SPAWNS.length)];
+    bucket.collected = false;
+    bucket.filled = false;
+    bucket.scene = spot.scene;
+    bucket.x = spot.x;
+    bucket.y = spot.y;
+  }
+  if (fruitCount >= FRUIT_NEEDED && !foodGiven) {
+    foodGiven = true;
+    fruitCount -= FRUIT_NEEDED;
+    gave.push("food");
+  }
+  updateObjectives();
+
+  if (waterGiven && foodGiven) {
+    mainMissionDone = true;
+    treats += 2;
+    updateObjectives();
+    state = "story"; // pause the game while the message is shown
+    document.getElementById("mission-panel").classList.remove("hidden");
+  } else {
+    const bucketNote = gave.includes("water") ? " The empty bucket went back somewhere in the ship." : "";
+    showMessage("Laika gave her " + gave.join(" and ") + "! " + stillNeeded() + bucketNote);
+  }
+}
+
+function closeMissionPanel() {
+  state = "play";
+  document.getElementById("mission-panel").classList.add("hidden");
+  document.getElementById("mission-close").blur();
 }
 
 function collectOxygen() {
@@ -1009,32 +1613,76 @@ function updateMessage(deltaTime) {
   }
 }
 
-// Writes one line of the objective tracker: [x] when done, [ ] when not
-function setObjective(element, done, text) {
-  element.textContent = (done ? "[x] " : "[ ] ") + text;
-  if (done) {
-    element.classList.add("done");
+// Adds one line to the objective tracker.
+// type: "heading" (a section title), "info" (extra info), or a task:
+// tasks show [x] when done and [ ] when not.
+function addObjectiveLine(text, done, type) {
+  const line = document.createElement("p");
+  if (type === "heading" || type === "info") {
+    line.textContent = text;
+    line.classList.add(type === "heading" ? "objective-heading" : "objective-info");
   } else {
-    element.classList.remove("done");
+    line.textContent = (done ? "[x] " : "[ ] ") + text;
+    if (done) {
+      line.classList.add("done");
+    }
   }
+  objectiveList.appendChild(line);
 }
 
-// Refreshes the objective tracker and shows a hint for the next step
+// Refreshes the objective tracker and shows a hint for the next step.
+// The tutorial is shown first; after it, the main mission and side objective.
 function updateObjectives() {
-  setObjective(objectiveOxygen, oxygenTank.collected, "Find the oxygen tank");
-  setObjective(objectiveFill, oxygenTank.filled, "Fill it in the oxygen room");
-  setObjective(objectiveDevice, commDevice.collected, "Recover the communication device");
-  setObjective(objectiveAttach, commDevice.attached, "Attach the device at the ship");
+  objectiveList.innerHTML = "";
+  let hint;
 
-  let hint = "Hint: the ship monitor has something new for you! (look for the !)";
-  if (!oxygenTank.collected) {
-    hint = "Hint: look for the blue O2 sign on a door inside the ship.";
-  } else if (!oxygenTank.filled) {
-    hint = "Hint: the oxygen room is through the green door in the storage room.";
-  } else if (!commDevice.collected) {
-    hint = "Hint: follow the beeping signal outside, among the crash debris.";
-  } else if (!commDevice.attached) {
-    hint = "Hint: bring the device back to the ship and press E.";
+  if (!tutorialDone()) {
+    addObjectiveLine("Tutorial", false, "heading");
+    addObjectiveLine("Find the oxygen tank", oxygenTank.collected);
+    addObjectiveLine("Fill it in the oxygen room", oxygenTank.filled);
+    addObjectiveLine("Recover the communication device", commDevice.collected);
+    addObjectiveLine("Attach the device at the ship", commDevice.attached);
+
+    if (!oxygenTank.collected) {
+      hint = "Hint: look for the blue O2 sign on a door inside the ship.";
+    } else if (!oxygenTank.filled) {
+      hint = "Hint: the oxygen room is through the green door in the storage room.";
+    } else if (!commDevice.collected) {
+      hint = "Hint: follow the beeping signal outside, among the crash debris.";
+    } else {
+      hint = "Hint: bring the device back to the ship and press E.";
+    }
+  } else {
+    const enoughFruit = foodGiven || fruitCount >= FRUIT_NEEDED;
+    const fruitShown = foodGiven ? FRUIT_NEEDED : Math.min(fruitCount, FRUIT_NEEDED);
+    addObjectiveLine("Main Mission: Keep the Astronaut Alive", false, "heading");
+    addObjectiveLine("Find a bucket in the spaceship", bucket.found);
+    addObjectiveLine("Fill the bucket at the lake", bucket.filledOnce);
+    addObjectiveLine("Collect alien fruit (" + fruitShown + "/" + FRUIT_NEEDED + ")", enoughFruit);
+    addObjectiveLine("Return to the astronaut with the supplies", mainMissionDone);
+
+    const planted = farmPlots.some(function (plot) { return plot.stage !== "empty" && plot.stage !== "dug"; });
+    const dug = farmPlots.some(function (plot) { return plot.stage !== "empty"; });
+    addObjectiveLine("Side Objective: Start a Farm", false, "heading");
+    addObjectiveLine("Find seeds", seedsFound);
+    addObjectiveLine("Dig a planting spot", dug);
+    addObjectiveLine("Plant the seeds", planted);
+    addObjectiveLine("Water the plants", farmWatered);
+    addObjectiveLine("Grow and harvest alien fruit", farmHarvested);
+
+    if (!bucket.found) {
+      hint = "Hint: look for a bucket in the ship's storage room.";
+    } else if (!waterGiven && !bucket.filledOnce) {
+      hint = "Hint: the lake is past the right edge of the crash site (LAKE ->).";
+    } else if (!enoughFruit) {
+      hint = "Hint: alien fruit grows in the jungle (<- JUNGLE), by the lake and near the ship.";
+    } else if (!mainMissionDone) {
+      hint = "Hint: bring water and fruit to the astronaut's bed. " + stillNeeded();
+    } else if (!farmHarvested) {
+      hint = "Side objective: find seeds and grow food at the farm next to the ship.";
+    } else {
+      hint = "Keep exploring! More adventures are coming...";
+    }
   }
   objectiveHint.textContent = hint;
 }
@@ -1053,7 +1701,13 @@ function dogNearMonitor() {
 
 // The next set of tasks, shown on the monitor after the tutorial is complete.
 // Add the new tasks here, for example: "Find the ship's engine part"
-const NEXT_TASKS = [];
+let tutorialCompleteSeen = false; // has the player seen "Tutorial Complete" yet?
+
+const NEXT_TASKS = [
+  "Main mission: Keep the astronaut alive - find water and food",
+  "Side objective: Start a farm to grow food",
+  "Explore the planet: the jungle is to the left, the lake to the right"
+];
 
 function openTutorial() {
   state = "tutorial"; // updatePlay stops running, so Laika can't move
@@ -1063,6 +1717,9 @@ function openTutorial() {
   // Once the tutorial tasks are done, the monitor shows "Tutorial Complete"
   // and the next tasks instead of the picture instructions
   const done = tutorialDone();
+  if (done) {
+    tutorialCompleteSeen = true; // the "!" above the monitor goes away
+  }
   document.getElementById("tutorial-steps").classList.toggle("hidden", done);
   document.getElementById("tutorial-complete").classList.toggle("hidden", !done);
   if (done) {
@@ -1275,12 +1932,14 @@ const TUTORIAL_STEPS = [
   {
     caption: "Get a Treat!",
     draw: function (time) {
-      // Draw the treat twice as big
-      tutorialCtx.save();
-      tutorialCtx.translate(24, 12);
-      tutorialCtx.scale(2, 2);
-      tTreat(0, 0);
-      tutorialCtx.restore();
+      // Team artwork: dog treat.png (placeholder: a bone drawn twice as big)
+      if (!drawPart(tutorialCtx, images.dogTreat, TREAT_CROP, 30, 6, 30, 30)) {
+        tutorialCtx.save();
+        tutorialCtx.translate(24, 12);
+        tutorialCtx.scale(2, 2);
+        tTreat(0, 0);
+        tutorialCtx.restore();
+      }
       tutorialCtx.font = "bold 10px 'Courier New', monospace";
       tutorialCtx.textAlign = "center";
       tutorialCtx.fillStyle = "#ffd84d";
@@ -1326,7 +1985,9 @@ function drawInteractionPrompt(time) {
   if (interaction) {
     const bob = Math.sin(time * 5) * 1.5;
     const x = clamp(interaction.x, 45, GAME_WIDTH - 45); // keep text on screen
-    label(interaction.text, x, interaction.y + bob, "#ffd84d");
+    // Show the player's own interact key, in case they changed it in Options
+    const text = interaction.text.replace("Press E", "Press " + keyName(controls.interact));
+    label(text, x, interaction.y + bob, "#ffd84d");
   }
 }
 
@@ -1591,10 +2252,13 @@ function drawTrees() {
   ctx.restore();
 }
 
-function drawOutsideBackground(time) {
+// withoutTrees = true leaves the trees out (used by the lake area)
+function drawOutsideBackground(time, withoutTrees) {
   drawSky(time);
   drawMountains();
-  drawTrees(); // drawn before the ground, so the ground hides the bottom of each image
+  if (!withoutTrees) {
+    drawTrees(); // drawn before the ground, so the ground hides the bottom of each image
+  }
   drawGround();
 }
 
@@ -1743,6 +2407,15 @@ function drawOutside(time) {
   drawOutsideBackground(time);
   drawCrashSite(time, 999);
 
+  // The farm next to the ship, items on the ground, and signs to the other areas
+  for (const plot of farmPlots) {
+    drawFarmPlot(plot, time);
+  }
+  label("FARM", 158, 173, "#c8a26b"); // under the plots, so tall plants don't cover it
+  drawGroundItems("outside", time);
+  drawSign(18, 162, "<- JUNGLE");
+  drawSign(300, 142, "LAKE ->");
+
   drawShadow(ship.x, ship.y, ship.width);
   drawShadow(dog.x, dog.y, dog.width);
 
@@ -1754,6 +2427,254 @@ function drawOutside(time) {
     drawShip(time);
     drawDog(time);
   }
+}
+
+// =============================================
+// PLANET AREAS: LAKE AND JUNGLE
+// Everything here is placeholder shapes until the team's sprites are ready.
+// =============================================
+
+// A wooden sign on a post, e.g. "LAKE ->". (x, y) = bottom of the post.
+function drawSign(x, y, text) {
+  rect(x - 1, y - 10, 2, 10, "#5c4426");
+  ctx.font = "bold 6px 'Courier New', monospace";
+  const width = Math.ceil(ctx.measureText(text).width) + 6;
+  rect(x - width / 2, y - 17, width, 8, "#8b6b3e");
+  rect(x - width / 2, y - 17, width, 1, "#a8844f");
+  label(text, x, y - 11, "#ffe9c4");
+}
+
+// Alien fruit. type = which fruit from "Alien fruits.png" (0 to 15).
+// (x, y) = bottom center.
+function drawAlienFruit(x, y, time, type) {
+  x = Math.round(x);
+  y = Math.round(y);
+  const glow = Math.sin(time * 3 + x) > 0;
+  if (glow) {
+    rect(x - 5, y - 8, 11, 9, "rgba(229,156,255,0.25)"); // soft glow
+  }
+  // Team artwork (10x10)
+  if (drawPart(ctx, images.alienFruits, FRUIT_SPRITES[type || 0], x - 5, y - 10, 10, 10)) {
+    return;
+  }
+  // Placeholder: a spiky purple pod with teal spots on a curly stem
+  rect(x, y - 10, 1, 3, "#5fd39a");        // stem
+  rect(x + 1, y - 11, 2, 1, "#5fd39a");    // curl
+  rect(x - 2, y - 7, 5, 1, "#9b3cff");     // top of the pod
+  rect(x - 3, y - 6, 7, 5, "#9b3cff");     // body
+  rect(x - 2, y - 1, 5, 1, "#7a24d6");     // bottom
+  rect(x - 4, y - 4, 1, 1, "#ff6fd8");     // spikes
+  rect(x + 4, y - 4, 1, 1, "#ff6fd8");
+  rect(x, y - 8, 1, 1, "#ff6fd8");
+  rect(x - 2, y - 5, 1, 1, "#5fe3d0");     // teal spots
+  rect(x + 1, y - 3, 1, 1, "#5fe3d0");
+  rect(x - 1, y - 2, 1, 1, "#5fe3d0");
+  rect(x + 1, y - 6, 1, 1, "#f2c9ff");     // shine
+}
+
+// Alien seeds on the ground. type = which seed from "seeds.png".
+// (x, y) = bottom center.
+function drawSeedPod(x, y, time, type) {
+  if (drawPart(ctx, images.seeds, seedSprite(type || 0), x - 4, y - 8, 8, 8)) {
+    if (Math.floor(time * 3) % 2 === 0) {
+      rect(x + 4, y - 9, 1, 1, "#ffffff"); // a little sparkle so they're easy to spot
+    }
+    return;
+  }
+  // Placeholder: a pouch of glowing seeds
+  rect(x - 3, y - 5, 6, 5, "#8b6b3e");
+  rect(x - 2, y - 6, 4, 1, "#a8844f");
+  rect(x - 1, y - 7, 2, 1, "#5c4426"); // tie
+  const blink = Math.floor(time * 3) % 2 === 0;
+  rect(x - 2, y - 3, 1, 1, blink ? "#9df5c4" : "#5fd39a");
+  rect(x, y - 2, 1, 1, blink ? "#5fd39a" : "#9df5c4");
+  rect(x + 1, y - 4, 1, 1, "#ffd84d");
+}
+
+// A metal bucket, empty or full of water. (x, y) = top left, about 7x7.
+function drawBucket(x, y, filled, time) {
+  x = Math.round(x);
+  y = Math.round(y);
+  // Team artwork: Bucket.png, with water drawn in its opening when full
+  if (drawPart(ctx, images.bucket, BUCKET_CROP, x - 1, y - 1, 9, 8)) {
+    if (filled) {
+      rect(x + 1, y, 6, 2, "#3fc8ff");
+      if (Math.floor(time * 3) % 2 === 0) {
+        rect(x + 2, y, 1, 1, "#d6f4ff");    // sparkle on the water
+      }
+    }
+    return;
+  }
+  // Placeholder bucket
+  rect(x + 1, y, 5, 1, "#6b7380");          // handle
+  rect(x, y + 1, 1, 2, "#6b7380");
+  rect(x + 6, y + 1, 1, 2, "#6b7380");
+  rect(x, y + 2, 7, 5, "#b8c0cc");          // bucket
+  rect(x + 1, y + 6, 5, 1, "#8a919c");
+  if (filled) {
+    rect(x + 1, y + 2, 5, 2, "#3fc8ff");    // water
+    if (Math.floor(time * 3) % 2 === 0) {
+      rect(x + 2, y + 2, 1, 1, "#d6f4ff");  // sparkle on the water
+    }
+  } else {
+    rect(x + 1, y + 2, 5, 1, "#2e3440");    // empty inside
+  }
+}
+
+// One farm plot. (plot.x, plot.y) = center. Shows how far the plant has grown.
+function drawFarmPlot(plot, time) {
+  const x = plot.x;
+  const y = plot.y;
+  if (plot.stage === "empty") {
+    // Bare ground with a few stones: "dig here"
+    rect(x - 10, y - 3, 20, 6, "rgba(92,62,38,0.55)");
+    rect(x - 6, y - 1, 1, 1, "#5c4426");
+    rect(x + 4, y, 1, 1, "#5c4426");
+    return;
+  }
+  // Dug soil: dark and shiny when watered, lighter and dry when not
+  const wet = plot.watered || plot.stage === "mature";
+  rect(x - 10, y - 4, 20, 8, wet ? "#2a1a0f" : "#4a3220");
+  rect(x - 10, y - 4, 20, 2, wet ? "#3d2817" : "#6b4a2e");
+  if (wet && plot.stage !== "mature") {
+    rect(x - 7, y + 1, 1, 1, "#3fc8ff"); // drops of water in the soil
+    rect(x + 6, y - 1, 1, 1, "#3fc8ff");
+  }
+  // A blinking water drop above plants that need watering
+  if ((plot.stage === "seed" || plot.stage === "sprout") && !plot.watered && Math.floor(time * 2) % 2 === 0) {
+    rect(x + 5, y - 14, 3, 3, "#3fc8ff");
+    rect(x + 6, y - 15, 1, 1, "#3fc8ff");
+  }
+  if (plot.stage === "dug") {
+    rect(x - 1, y - 1, 3, 2, "#1a0f08"); // empty hole
+  } else if (plot.stage === "seed") {
+    rect(x - 1, y - 1, 3, 1, "#1a0f08");
+    rect(x, y - 2, 1, 1, "#9df5c4");     // tiny glowing seed
+  } else if (plot.stage === "sprout") {
+    rect(x, y - 6, 1, 5, "#5fd39a");     // small sprout
+    rect(x - 2, y - 6, 2, 1, "#7fe0a0");
+    rect(x + 1, y - 7, 2, 1, "#7fe0a0");
+  } else {
+    // Mature alien plant: a tall twisty teal stalk with curly leaves
+    rect(x, y - 18, 1, 17, "#3fb58a");
+    rect(x - 3, y - 8, 3, 1, "#5fd39a");
+    rect(x + 1, y - 11, 3, 1, "#5fd39a");
+    rect(x - 3, y - 14, 3, 1, "#5fd39a");
+    rect(x - 1, y - 20, 3, 2, "#ff6fd8"); // glowing bud on top
+    if (plot.fruitReady) {
+      // The plant grows the kind of fruit its seed was for
+      drawAlienFruit(x - 5, y - 7, time, plot.fruitType);
+      drawAlienFruit(x + 5, y - 11, time + 1, plot.fruitType);
+    }
+  }
+}
+
+// The bucket, if it's lying on the ground in this area
+function drawLooseBucket(scene, time) {
+  if (!bucket.collected && bucket.scene === scene) {
+    drawShadow(bucket.x - 4, bucket.y, 8);
+    drawBucket(bucket.x - 3, bucket.y - 7, bucket.filled, time);
+  }
+}
+
+// Fruit, seeds and the bucket lying around in one area
+function drawGroundItems(scene, time) {
+  for (const fruit of alienFruits) {
+    if (fruit.scene === scene && !fruit.collected) {
+      drawShadow(fruit.x - 3, fruit.y, 7);
+      drawAlienFruit(fruit.x, fruit.y, time, fruit.type);
+    }
+  }
+  for (const pod of seedPods) {
+    if (pod.scene === scene && !pod.collected) {
+      drawShadow(pod.x - 3, pod.y, 6);
+      drawSeedPod(pod.x, pod.y, time, pod.type);
+    }
+  }
+  drawLooseBucket(scene, time);
+}
+
+// The lake area
+function drawLakeArea(time) {
+  drawOutsideBackground(time, true);
+
+  // Team artwork: Lake.png
+  const img = LAKE_IMAGE;
+  if (drawPart(ctx, images.lake, img.crop, img.x, img.y, img.width, img.height)) {
+    drawSign(20, 150, "<- SHIP");
+    drawGroundItems("lake", time);
+    return;
+  }
+
+  // Placeholder lake: a dark rim, teal water, and moving ripples
+  ctx.fillStyle = "#1f4a37";
+  ctx.beginPath();
+  ctx.ellipse(lake.x, lake.y + 1, lake.radiusX + 3, lake.radiusY + 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#2fb5a8";
+  ctx.beginPath();
+  ctx.ellipse(lake.x, lake.y, lake.radiusX, lake.radiusY, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#5fe3d0";
+  ctx.beginPath();
+  ctx.ellipse(lake.x - 8, lake.y - 3, lake.radiusX - 22, lake.radiusY - 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < 4; i++) {
+    const rippleX = lake.x - 45 + i * 28 + Math.sin(time + i) * 4;
+    rect(rippleX, lake.y - 6 + (i % 2) * 7, 8, 1, "#c8fff6");
+  }
+
+  // Strange reeds with glowing tips
+  for (const reedX of [116, 130, 244, 258]) {
+    rect(reedX, 136, 1, 10, "#3fb58a");
+    rect(reedX - 1, 134, 3, 2, Math.sin(time * 2 + reedX) > 0 ? "#ffd84d" : "#ff6fd8");
+  }
+  drawSign(20, 150, "<- SHIP");
+  drawGroundItems("lake", time);
+}
+
+// The jungle area: the big tree and tall glowing alien plants
+function drawJungleArea(time) {
+  drawOutsideBackground(time, true); // no background trees, so the big tree stands out
+
+  // Team artwork: Big Tree.png, drawn 2x its pixel-art size (128x128).
+  // Like the other trees it has a black background, so "lighten" hides it.
+  if (imageReady(images.bigTree)) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighten";
+    ctx.drawImage(images.bigTree, bigTree.x, GROUND_TOP + 6 - 120, bigTree.size, bigTree.size);
+    ctx.restore();
+  } else {
+    // Placeholder big tree
+    rect(bigTree.trunkX - 8, GROUND_TOP - 50, 16, 56, "#6b4a2e");
+    rect(bigTree.trunkX - 40, GROUND_TOP - 100, 80, 55, "#3f8f3a");
+  }
+  if (bigTree.inspected === false && Math.floor(time * 2) % 2 === 0) {
+    label("?", bigTree.trunkX, GROUND_TOP - 64, "#ffd84d"); // something to inspect
+  }
+
+  for (const plantX of [190, 285]) {
+    rect(plantX, 112, 3, 22, "#2f6b4f");                 // stalk
+    rect(plantX - 6, 108, 15, 5, "#3fd0c9");             // cap
+    rect(plantX - 4, 106, 11, 2, "#7fe0d0");
+    if (Math.sin(time * 2 + plantX) > 0) {
+      rect(plantX - 3, 110, 2, 1, "#ffd84d");            // glowing spots
+      rect(plantX + 4, 109, 2, 1, "#ffd84d");
+    }
+  }
+  drawSign(300, 150, "SHIP ->");
+  drawGroundItems("jungle", time);
+}
+
+// Draws an outdoor area (lake or jungle) with Laika
+function drawOutdoorArea(time) {
+  if (currentScene === "lake") {
+    drawLakeArea(time);
+  } else {
+    drawJungleArea(time);
+  }
+  drawShadow(dog.x, dog.y, dog.width);
+  drawDog(time);
 }
 
 // =============================================
@@ -1840,8 +2761,9 @@ function drawInsideRoom(time) {
     rect(164, 92, 6, 4, "#9df5c4");
   }
 
-  // Blinking "!" above the monitor once the tutorial tasks are done
-  if (tutorialDone() && Math.floor(time * 3) % 2 === 0) {
+  // Blinking "!" above the monitor once the tutorial tasks are done,
+  // until the player has looked at the monitor
+  if (tutorialDone() && !tutorialCompleteSeen && Math.floor(time * 3) % 2 === 0) {
     const cx = monitor.x + monitor.width / 2;
     rect(cx - 4, 20, 9, 17, "#000000");  // outline
     rect(cx - 2, 22, 5, 9, "#ffd84d");   // the line of the "!"
@@ -1910,6 +2832,7 @@ function drawAstronaut() {
 
 function drawInside(time) {
   drawInsideRoom(time);
+  drawLooseBucket("inside", time);
 
   drawShadow(cot.x, cot.y, cot.width);
   drawShadow(dog.x, dog.y, dog.width);
@@ -2029,6 +2952,9 @@ function drawStorage(time) {
     drawShadow(oxygenTank.x - 5, oxygenTank.y, 10);
     things.push({ y: oxygenTank.y, draw: drawOxygenTank });
   }
+  if (!bucket.collected && bucket.scene === "storage") {
+    things.push({ y: bucket.y, draw: function () { drawLooseBucket("storage", time); } });
+  }
   drawShadow(dog.x, dog.y, dog.width);
   things.push({ y: dog.y, draw: drawDog });
 
@@ -2090,6 +3016,7 @@ function drawOxygenFiller(time) {
 
 function drawOxygenRoomScene(time) {
   drawOxygenRoom(time);
+  drawLooseBucket("oxygenRoom", time);
   drawShadow(dog.x, dog.y, dog.width);
   drawDog(time);
 }
@@ -2099,19 +3026,45 @@ function drawOxygenRoomScene(time) {
 // =============================================
 
 function drawHud(time) {
-  // Treat counter: a bone-shaped treat and how many Laika has
+  // Treat counter: a bone-shaped treat and how many Laika has.
+  // After the tutorial it also shows her alien fruit and seeds.
   const tx = 6;
   const ty = 168;
-  rect(tx - 2, ty - 3, 40, 11, "rgba(10,5,30,0.7)");
-  rect(tx, ty, 3, 2, "#f2d3a0");
-  rect(tx, ty + 3, 3, 2, "#f2d3a0");
-  rect(tx + 2, ty + 1, 8, 3, "#f2d3a0");
-  rect(tx + 9, ty, 3, 2, "#f2d3a0");
-  rect(tx + 9, ty + 3, 3, 2, "#f2d3a0");
+  const showFood = tutorialDone();
+  rect(tx - 2, ty - 3, showFood ? 104 : 40, 11, "rgba(10,5,30,0.7)");
+  // Team artwork: dog treat.png (placeholder: a bone shape)
+  if (!drawPart(ctx, images.dogTreat, TREAT_CROP, tx, ty - 2, 9, 9)) {
+    rect(tx, ty, 3, 2, "#f2d3a0");
+    rect(tx, ty + 3, 3, 2, "#f2d3a0");
+    rect(tx + 2, ty + 1, 8, 3, "#f2d3a0");
+    rect(tx + 9, ty, 3, 2, "#f2d3a0");
+    rect(tx + 9, ty + 3, 3, 2, "#f2d3a0");
+  }
   ctx.font = "bold 7px 'Courier New', monospace";
   ctx.textAlign = "left";
   ctx.fillStyle = "#f2d3a0";
   ctx.fillText("x " + treats, tx + 15, ty + 5);
+  if (showFood) {
+    // Alien fruit (team artwork: fruit 0; placeholder: a purple pod)
+    if (!drawPart(ctx, images.alienFruits, FRUIT_SPRITES[0], tx + 38, ty - 2, 9, 9)) {
+      rect(tx + 40, ty - 1, 5, 6, "#9b3cff");
+      rect(tx + 41, ty + 1, 1, 1, "#5fe3d0");
+    }
+    ctx.fillStyle = "#e59cff";
+    ctx.fillText("x " + fruitCount, tx + 48, ty + 5);
+    // Seeds (team artwork: seed 1; placeholder: a pouch)
+    if (!drawPart(ctx, images.seeds, seedSprite(1), tx + 70, ty - 1, 7, 7)) {
+      rect(tx + 72, ty, 4, 4, "#8b6b3e");
+      rect(tx + 73, ty + 1, 1, 1, "#9df5c4");
+    }
+    ctx.fillStyle = "#9df5c4";
+    ctx.fillText("x " + seedBag.length, tx + 79, ty + 5);
+  }
+
+  // The oxygen meter only appears once Laika has been outside
+  if (!oxygenUnlocked) {
+    return;
+  }
 
   // Oxygen meter: green when full, yellow when half, red (blinking) when low
   const mx = 248;
@@ -2153,6 +3106,18 @@ const LAIKA_WALK_FRAMES = [
 ];
 const LAIKA_WALK_ORDER = [0, 1, 2, 1]; // play the frames 1-2-3-2, over and over
 
+// Little puffs of dust behind Laika's feet while she runs.
+// x = the spot just behind her tail.
+function drawRunDust(time, x) {
+  for (let i = 0; i < 3; i++) {
+    const age = (time * 4 + i / 3) % 1;              // 0 = new puff, 1 = gone
+    const size = 1 + Math.floor(age * 3);
+    const drift = dog.facing === 1 ? -age * 6 : age * 6; // drifts away behind her
+    rect(x + 2 + drift, dog.y - 2 - age * 3, size, size,
+         "rgba(200,190,170," + (0.7 - age * 0.7) + ")");
+  }
+}
+
 // Draws Space helmet.png (size x size) on any canvas at (x, y).
 // The visor faces right in the image, so it is flipped when facing left.
 // If the image is missing, nothing is drawn.
@@ -2188,8 +3153,7 @@ function drawDog(time) {
   }
 
   const walking = state === "play" &&
-    (keys["a"] || keys["d"] || keys["w"] || keys["s"] ||
-     keys["arrowleft"] || keys["arrowright"] || keys["arrowup"] || keys["arrowdown"]);
+    (holding("left") || holding("right") || holding("up") || holding("down"));
 
   // backY = the line of her back, sideY = the middle of her side.
   // Items she carries are drawn relative to these.
@@ -2200,16 +3164,24 @@ function drawDog(time) {
     // Team artwork: switch frames quickly while walking, slowly (a tail wag) while standing
     // Walking uses "Laikia walking.png" (3 frames, played 1-2-3-2) if it's loaded;
     // standing uses Laika.png's 2 frames slowly, like a tail wag.
+    // Running (Shift) plays the walking frames twice as fast, adds a little
+    // bounce, and kicks up dust behind her.
+    const running = walking && dog.running;
+    const step = Math.floor(time * (running ? 16 : 8));
     let sheet = images.laika;
     let frame = LAIKA_FRAMES[Math.floor(time * 1.5) % 2];
     if (walking && imageReady(images.laikaWalk)) {
       sheet = images.laikaWalk;
-      frame = LAIKA_WALK_FRAMES[LAIKA_WALK_ORDER[Math.floor(time * 8) % LAIKA_WALK_ORDER.length]];
+      frame = LAIKA_WALK_FRAMES[LAIKA_WALK_ORDER[step % LAIKA_WALK_ORDER.length]];
     } else if (walking) {
-      frame = LAIKA_FRAMES[Math.floor(time * 6) % 2];
+      frame = LAIKA_FRAMES[step % 2];
     }
+    const bounce = running && step % 2 === 1 ? 1 : 0; // lifts her 1 pixel every other frame
     const x = Math.round(dog.x);
-    const y = Math.round(top);
+    const y = Math.round(top) - bounce;
+    if (running) {
+      drawRunDust(time, part(-4, 4));
+    }
     ctx.save();
     if (dog.facing === 1) {
       // The sprite faces left, so flip it to face right
@@ -2223,7 +3195,7 @@ function drawDog(time) {
     // Her back is 7.5 pixels below the top of the sprite in every frame.
     // backY is 1 pixel lower, so the tank sits down on her back, not above it.
     backY = y + 9;
-    sideY = dog.y - 7;
+    sideY = y + 11;
 
     // Space helmet over her head (her head is at the nose end of the sprite)
     drawHelmet(ctx, part(13, 14), y - 3, 14, dog.facing === 1);
@@ -2275,6 +3247,11 @@ function drawDog(time) {
     if (!drawPart(ctx, images.radio, RADIO_CROP, part(dog.width - 1, 3), sideY - 6, 3, 7)) { // held in her mouth
       rect(part(dog.width - 1, 3), sideY - 2, 3, 3, "#4c566a");
     }
+  }
+
+  // The bucket hangs from her mouth by its handle (shows water once filled)
+  if (bucket.collected) {
+    drawBucket(part(dog.width - 3, 7), sideY - 4, bucket.filled, time);
   }
 }
 
@@ -2409,7 +3386,7 @@ function draw(time) {
 
   if (state === "title" || state === "menu") {
     drawTitleBackground(time);
-  } else if (state === "cutscene") {
+  } else if (state === "cutscene" || (state === "paused" && stateBeforePause === "cutscene")) {
     drawCutscene(time);
   } else {
     // "play" or "tutorial": the tutorial panel sits on top of the game
@@ -2419,6 +3396,8 @@ function draw(time) {
       drawInside(time);
     } else if (currentScene === "storage") {
       drawStorage(time);
+    } else if (currentScene === "lake" || currentScene === "jungle") {
+      drawOutdoorArea(time);
     } else {
       drawOxygenRoomScene(time);
     }

@@ -154,8 +154,58 @@ body {
 }
 
 /* ----- Ship monitor tutorial ----- */
-#tutorial {
+/* ----- Pause menu ----- */
+.pause-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#pause-main,
+#pause-options {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.pause-note {
+  font-size: 12px;
+  color: #8877aa;
+}
+
+/* One row per control: its name on the left, its key button on the right */
+.control-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 4px;
+  color: #e8fff2;
+  text-align: left;
+}
+
+.control-row .pixel-button.small {
+  min-width: 110px;
+}
+
+#tutorial,
+#mission-panel,
+#pause-menu {
   background: rgba(0, 0, 0, 0.6); /* dim the game behind the panel */
+}
+
+/* Section titles in the objectives panel, e.g. "Main Mission: ..." */
+#objectives p.objective-heading {
+  margin-top: 3px;
+  font-weight: bold;
+  color: #ffd84d;
+}
+
+/* Extra info lines, e.g. "Creatures discovered" */
+#objectives p.objective-info {
+  color: #c8b6ff;
 }
 
 .tutorial-panel {
