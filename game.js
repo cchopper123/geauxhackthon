@@ -65,8 +65,58 @@ const images = {
   planetGround: loadImage("assets/Planet ground.png"),
   spaceship: loadImage("assets/Spaceship.png"),
   oxygenTank: loadImage("assets/Oxygen tank.png"),
-  laika: loadImage("assets/Laika.png")
+  laika: loadImage("assets/Laika.png"),
+  spaceHelmet: loadImage("assets/Space helmet.png"),
+  rocks: loadImage("assets/rocks.png"),
+  radio: loadImage("assets/Radio.png"),
+  astronaut: loadImage("assets/Astronaut frames.png"),
+  interiorFurniture: loadImage("assets/Interior (1).png"),
+  interiorWalls: loadImage("assets/Interior (2).png")
 };
+
+// The part of "Radio.png" that has the radio in it
+const RADIO_CROP = { x: 175, y: 64, width: 150, height: 372 };
+
+// "Astronaut frames.png" is a sprite sheet: 30 columns x 5 rows of small
+// astronaut frames. Row 1 is falling-down animations; this frame is the
+// last one of a fall (lying on her back), used for the unconscious astronaut.
+const ASTRONAUT_LYING = { x: 338, y: 38, width: 29, height: 25 };
+
+// Pieces cut out of the interior tilesets (boxes in image pixels).
+const INTERIOR = {
+  // From "Interior (2).png" (walls and floors). Wall tiles are 128x64:
+  // a white trim at the top, the wall itself, and a dark line at the bottom.
+  wallMain: { x: 0, y: 544, width: 128, height: 64 },     // blue-gray panels
+  wallStorage: { x: 0, y: 608, width: 128, height: 64 },  // beige panels
+  floorMain: { x: 352, y: 352, width: 96, height: 64 },   // gray floor tiles
+  floorStorage: { x: 352, y: 288, width: 96, height: 64 }, // teal round tiles
+  // From "Interior (1).png" (furniture)
+  bed: { x: 256, y: 576, width: 64, height: 52 },
+  window: { x: 26, y: 846, width: 76, height: 50 },
+  doorway: { x: 258, y: 278, width: 28, height: 42 },
+  plant: { x: 386, y: 1444, width: 28, height: 46 },
+  shelfWide: { x: 64, y: 592, width: 128, height: 64 },
+  shelfTall: { x: 160, y: 448, width: 64, height: 128 },
+  rack: { x: 204, y: 594, width: 42, height: 62 },
+  cabinetWide: { x: 104, y: 1898, width: 50, height: 42 },
+  cabinetTall: { x: 320, y: 1930, width: 32, height: 42 },
+  cabinetSmall: { x: 0, y: 1898, width: 32, height: 40 }
+};
+
+// Draws one cut-out piece of an image on any canvas.
+// Returns false if the image isn't loaded, so the caller can draw a placeholder.
+function drawPart(context, image, crop, x, y, width, height) {
+  if (!imageReady(image)) {
+    return false;
+  }
+  context.drawImage(image, crop.x, crop.y, crop.width, crop.height,
+                    Math.round(x), Math.round(y), width, height);
+  return true;
+}
+
+// The part of "Space helmet.png" that has the helmet in it.
+// The visor faces RIGHT in the image.
+const HELMET_CROP = { x: 78, y: 78, width: 354, height: 344 };
 
 // The part of "Oxygen tank.png" that has the tank in it (the rest is empty)
 const OXYGEN_TANK_CROP = { x: 196, y: 88, width: 108, height: 324 };
@@ -163,6 +213,8 @@ const objectiveAttach = document.getElementById("objective-attach");
 const objectiveHint = document.getElementById("objective-hint");
 const treatCount = document.getElementById("treat-count");
 const messageBox = document.getElementById("message");
+const objectivesBody = document.getElementById("objectives-body");
+const objectivesToggle = document.getElementById("objectives-toggle");
 
 // ----- Game state -----
 let state = "title";        // always start on the title screen
@@ -191,7 +243,7 @@ let treats = 0;             // Treats are the game's money (rewards for missions
 //   "inside"     inside the ship, Laika next to the astronaut
 const CUTSCENE_LINES = [
   { speaker: "Astronaut", text: "Laika, are you okay?", phase: "space" },
-  { speaker: "Astronaut", text: "Warning! The ship is losing control!", phase: "shaking" },
+  { speaker: "Computer", text: "Warning! The ship is losing control!", phase: "shaking" },
   { speaker: "Computer", text: "Emergency landing sequence activated.", phase: "descending" },
   { speaker: "Computer", text: "Warning. Life-support systems damaged.", phase: "descending" },
   { speaker: "Astronaut", text: "I need to get us out of here...", phase: "descending" },
@@ -268,19 +320,36 @@ const IMPACT_FLY_TIME = 1.2; // seconds for the ship to fall onto the ground
 const DEBRIS_FLY_TIME = 0.8; // seconds for debris to land after the crash
 const DEVICE_FLY_TIME = 1.4; // seconds for the communication device to land
 
-// Pieces of wreckage thrown from the ship. They fly out during the crash
-// and stay on the ground for the rest of the game. (x, y) = where they land.
+// Rocks in rocks.png (a sheet of loose rocks, not a grid).
+// Each box is where one rock is inside the image, in image pixels.
+// They are drawn at their real size: 1 image pixel = 1 game pixel.
+const ROCK_SPRITES = [
+  { x: 6, y: 7, width: 25, height: 14 },   // 0: wide rock
+  { x: 56, y: 7, width: 17, height: 13 },  // 1: tall rock
+  { x: 80, y: 10, width: 17, height: 9 },  // 2: flat rock
+  { x: 37, y: 12, width: 17, height: 8 },  // 3: small flat rock
+  { x: 99, y: 4, width: 22, height: 15 },  // 4: round rock
+  { x: 4, y: 27, width: 25, height: 14 },  // 5: wide rock
+  { x: 33, y: 26, width: 28, height: 17 }, // 6: big rock
+  { x: 115, y: 36, width: 7, height: 5 },  // 7: pebble
+  { x: 105, y: 37, width: 5, height: 4 }   // 8: tiny pebble
+];
+
+// Debris thrown from the ship during the crash: rocks knocked loose by the
+// impact. They fly out and stay on the ground for the rest of the game.
+// (x, y) = where they land (top-left), rock = which rock from ROCK_SPRITES.
+// width/height/color are only used for the placeholder if rocks.png is missing.
 const CRASH_DEBRIS = [
-  { x: 8, y: 140, width: 10, height: 4, color: "#6b7380" },
-  { x: 15, y: 156, width: 7, height: 3, color: "#555b66" },
-  { x: 110, y: 145, width: 8, height: 3, color: "#8a919c" },
-  { x: 125, y: 161, width: 5, height: 4, color: "#b8c0cc" },
-  { x: 150, y: 150, width: 10, height: 4, color: "#6b7380" },
-  { x: 182, y: 170, width: 4, height: 3, color: "#b8c0cc" },
-  { x: 215, y: 158, width: 9, height: 3, color: "#8a919c" },
-  { x: 248, y: 169, width: 6, height: 4, color: "#555b66" },
-  { x: 262, y: 150, width: 12, height: 3, color: "#6b7380" },
-  { x: 296, y: 167, width: 6, height: 3, color: "#b8c0cc" }
+  { x: 8, y: 140, width: 10, height: 4, color: "#6b7380", rock: 7 },
+  { x: 15, y: 156, width: 7, height: 3, color: "#555b66", rock: 3 },
+  { x: 110, y: 145, width: 8, height: 3, color: "#8a919c", rock: 2 },
+  { x: 125, y: 161, width: 5, height: 4, color: "#b8c0cc", rock: 8 },
+  { x: 150, y: 150, width: 10, height: 4, color: "#6b7380", rock: 1 },
+  { x: 182, y: 170, width: 4, height: 3, color: "#b8c0cc", rock: 7 },
+  { x: 215, y: 158, width: 9, height: 3, color: "#8a919c", rock: 0 },
+  { x: 248, y: 169, width: 6, height: 4, color: "#555b66", rock: 8 },
+  { x: 252, y: 150, width: 12, height: 3, color: "#6b7380", rock: 3 },
+  { x: 296, y: 167, width: 6, height: 3, color: "#b8c0cc", rock: 2 }
 ];
 
 // Everything the cutscene needs to remember while it plays
@@ -320,6 +389,11 @@ window.addEventListener("keydown", function (event) {
     controlsPanel.classList.toggle("hidden");
   }
 
+  // Press O during gameplay to hide/show the objectives list
+  if (state === "play" && key === "o" && !event.repeat) {
+    toggleObjectives();
+  }
+
   // E interacts with whatever Laika is next to. E or Escape closes the tutorial.
   if (!event.repeat) {
     if (state === "play" && key === "e") {
@@ -353,6 +427,17 @@ dialogueNext.addEventListener("click", function () {
 });
 
 tutorialClose.addEventListener("click", closeTutorial);
+
+// Hides the objectives list (the small "Objectives" title stays so it can be reopened)
+function toggleObjectives() {
+  objectivesBody.classList.toggle("hidden");
+  objectivesToggle.textContent = objectivesBody.classList.contains("hidden") ? "Show" : "Hide";
+}
+
+objectivesToggle.addEventListener("click", function () {
+  toggleObjectives();
+  objectivesToggle.blur(); // so Space/Enter don't press it again
+});
 
 // =============================================
 // GAME OBJECTS
@@ -399,9 +484,9 @@ const monitor = {
 
 // The bed inside the ship where the astronaut lies unconscious
 const cot = {
-  x: 180,
-  y: 140, // bottom of the cot legs
-  width: 70
+  x: 196,
+  y: 162, // bottom of the bed
+  width: 64
 };
 
 // Door on the main room's back wall (right side) that leads to the storage room
@@ -417,10 +502,11 @@ const storageExit = {
 };
 
 // Crates in the storage room. y = bottom of the crate.
+// sprite = which cabinet from INTERIOR is drawn (at 3/4 of its size)
 const crates = [
-  { x: 110, y: 150, width: 30, height: 22 },
-  { x: 170, y: 128, width: 24, height: 18 },
-  { x: 225, y: 165, width: 26, height: 16 }
+  { x: 110, y: 150, width: 38, height: 32, sprite: "cabinetWide" },
+  { x: 170, y: 128, width: 24, height: 32, sprite: "cabinetTall" },
+  { x: 225, y: 165, width: 24, height: 30, sprite: "cabinetSmall" }
 ];
 
 // ----- Mission items -----
@@ -449,10 +535,11 @@ const solids = {
     { x: ship.x, y: ship.y - 8, width: ship.width, height: 10 }
   ],
   inside: [
-    { x: cot.x, y: cot.y - 8, width: cot.width, height: 10 },
-    { x: cot.x + cot.width + 2, y: cot.y - 8, width: 12, height: 10 }, // heart monitor stand
-    // The ship monitor: Laika stops in front of it (so her head doesn't go behind the GIF)
-    { x: monitor.x, y: INSIDE_FLOOR_TOP, width: monitor.width, height: 17 }
+    { x: cot.x, y: cot.y - 38, width: cot.width, height: 38 }, // the bed (seen from above, so most of it is solid)
+    { x: cot.x + cot.width + 2, y: cot.y - 10, width: 12, height: 10 }, // heart monitor stand
+    // The ship monitor: Laika stops far enough in front of it that her
+    // helmet doesn't go behind the GIF
+    { x: monitor.x, y: INSIDE_FLOOR_TOP, width: monitor.width, height: 20 }
   ],
   storage: []
 };
@@ -881,6 +968,7 @@ function tDog(x, y, suit) {
     tutorialCtx.scale(-1, 1);
     tutorialCtx.drawImage(images.laika, frame.x, frame.y, frame.width, frame.height, 0, 0, 22, 15);
     tutorialCtx.restore();
+    drawHelmet(tutorialCtx, x + 11, y - 8, 12, true); // her space helmet
     return;
   }
   tRect(x, y + 3, 2, 1, "#8b4a1f");                          // tail
@@ -910,15 +998,10 @@ function tTank(x, y) {
   tRect(x, y + 8, 8, 2, "#ffffff");  // white band
 }
 
-function tAstronaut(x, y) {
-  tRect(x, y, 10, 8, "#e0e0e0");          // helmet
-  tRect(x + 2, y + 2, 4, 4, "#ffb347");   // visor
-  tRect(x + 10, y + 1, 34, 7, "#f2f2f2"); // suit
-  tRect(x + 20, y + 1, 2, 7, "#ff6fd8");  // stripe
-  tRect(x + 44, y, 5, 8, "#9aa3ad");      // boots
-}
-
 function tDevice(x, y, time) {
+  if (drawPart(tutorialCtx, images.radio, RADIO_CROP, x + 3, y - 1, 6, 15)) {
+    return; // team artwork: Radio.png
+  }
   tRect(x + 6, y, 1, 6, "#8a919c");       // antenna
   tRect(x + 5, y, 3, 1, "#d6dce4");
   tRect(x, y + 6, 12, 8, "#4c566a");      // box
@@ -975,12 +1058,19 @@ const TUTORIAL_STEPS = [
     }
   },
   {
-    caption: "Bring the oxygen back to your human",
+    caption: "Put the oxygen tank on",
     draw: function (time) {
-      tDog(2, 30);
-      tRect(7, 27, 10, 4, "#3fa7ff"); // tank carried on her back
-      tArrow(28, 32);
-      tAstronaut(42, 31);
+      tDog(36, 30);
+      // The tank lying across her back, valve toward her head
+      tutorialCtx.save();
+      tutorialCtx.translate(44, 28);
+      tutorialCtx.rotate(Math.PI / 2);
+      if (!drawOxygenImage(tutorialCtx, -2, -6, 4, 12)) {
+        tRect(-2, -6, 4, 12, "#3fa7ff");
+      }
+      tutorialCtx.restore();
+      tSparkle(30, 24, time);
+      tSparkle(64, 26, time + 0.25);
     }
   },
   {
@@ -1006,8 +1096,11 @@ const TUTORIAL_STEPS = [
     caption: "Attach it to your space suit",
     draw: function (time) {
       tDog(36, 30, true);
-      tRect(44, 33, 3, 3, "#4c566a"); // small device on her side
-      tRect(45, 31, 1, 2, "#8a919c"); // its antenna
+      // Small radio on her side
+      if (!drawPart(tutorialCtx, images.radio, RADIO_CROP, 44, 30, 3, 7)) {
+        tRect(44, 33, 3, 3, "#4c566a");
+        tRect(45, 31, 1, 2, "#8a919c");
+      }
       tSparkle(32, 24, time);
       tSparkle(62, 26, time + 0.25);
     }
@@ -1422,12 +1515,16 @@ function drawShip(time) {
 // The communication device on the ground. (x, y) = bottom center.
 // beeping = true shows signal rings, a clue to help find it.
 function drawCommDevice(x, y, time, beeping) {
-  rect(x - 1, y - 12, 1, 5, "#8a919c");   // antenna
-  rect(x - 2, y - 12, 3, 1, "#d6dce4");
-  rect(x - 5, y - 7, 10, 7, "#4c566a");   // box
-  rect(x - 3, y - 5, 4, 3, "#5fd39a");    // screen
-  const blinkOn = Math.floor(time * 3) % 2 === 0;
-  rect(x + 2, y - 5, 2, 2, blinkOn ? "#ff3b3b" : "#5a1111");
+  // Team artwork: Radio.png (8x20 on the ground)
+  if (!drawPart(ctx, images.radio, RADIO_CROP, x - 4, y - 20, 8, 20)) {
+    // Placeholder device
+    rect(x - 1, y - 12, 1, 5, "#8a919c");   // antenna
+    rect(x - 2, y - 12, 3, 1, "#d6dce4");
+    rect(x - 5, y - 7, 10, 7, "#4c566a");   // box
+    rect(x - 3, y - 5, 4, 3, "#5fd39a");    // screen
+    const blinkOn = Math.floor(time * 3) % 2 === 0;
+    rect(x + 2, y - 5, 2, 2, blinkOn ? "#ff3b3b" : "#5a1111");
+  }
 
   if (beeping) {
     // A ring grows out of the antenna and fades away, again and again
@@ -1455,7 +1552,14 @@ function drawCrashSite(time, timeSinceCrash) {
   for (const piece of CRASH_DEBRIS) {
     const x = lerp(startX, piece.x, debrisAmount);
     const y = lerp(startY, piece.y, debrisAmount) - Math.sin(debrisAmount * Math.PI) * 30;
-    rect(x, y, piece.width, piece.height, piece.color);
+    if (imageReady(images.rocks)) {
+      // Team artwork: a rock from rocks.png, its bottom on the landing spot
+      const r = ROCK_SPRITES[piece.rock];
+      ctx.drawImage(images.rocks, r.x, r.y, r.width, r.height,
+                    Math.round(x), Math.round(y + piece.height - r.height), r.width, r.height);
+    } else {
+      rect(x, y, piece.width, piece.height, piece.color); // placeholder
+    }
   }
 
   // The communication device flies further and higher than the debris
@@ -1489,21 +1593,67 @@ function drawOutside(time) {
 // INSIDE SCENE (inside the ship)
 // =============================================
 
-function drawInsideRoom(time) {
-  // Back wall with panel lines
-  rect(0, 0, GAME_WIDTH, INSIDE_FLOOR_TOP, "#3b4252");
+// Team artwork: back wall and floor made from "Interior (2).png" tiles.
+// Returns false if the image is missing (the room then uses placeholders).
+function drawWallAndFloor(wall, floor) {
+  const sheet = images.interiorWalls;
+  if (!imageReady(sheet)) {
+    return false;
+  }
+  rect(0, 0, GAME_WIDTH, 10, "#232733"); // dark ceiling edge
+  for (let x = 0; x < GAME_WIDTH; x += wall.width) {
+    // The wall tile is only 64 tall, so its middle part is stretched to fill the wall
+    ctx.drawImage(sheet, wall.x, wall.y, wall.width, 16, x, 10, wall.width, 16);      // top trim
+    ctx.drawImage(sheet, wall.x, wall.y + 16, wall.width, 44, x, 26, wall.width, 80); // wall
+    ctx.drawImage(sheet, wall.x, wall.y + 60, wall.width, 4, x, 106, wall.width, 4);  // bottom edge
+  }
+  for (let y = INSIDE_FLOOR_TOP; y < GAME_HEIGHT; y += floor.height) {
+    for (let x = 0; x < GAME_WIDTH; x += floor.width) {
+      ctx.drawImage(sheet, floor.x, floor.y, floor.width, floor.height, x, y, floor.width, floor.height);
+    }
+  }
+  return true;
+}
+
+// Placeholder wall and floor (if "Interior (2).png" is missing)
+function drawPlaceholderWallAndFloor(wallColor) {
+  rect(0, 0, GAME_WIDTH, INSIDE_FLOOR_TOP, wallColor);
   for (let x = 0; x < GAME_WIDTH; x += 40) {
     rect(x, 0, 1, INSIDE_FLOOR_TOP, "#2e3440");
   }
-  rect(0, 20, GAME_WIDTH, 1, "#2e3440");
-
-  // Windows looking out at space
-  for (const windowX of [90, 270]) {
-    rect(windowX, 35, 24, 18, "#6b7380");
-    rect(windowX + 2, 37, 20, 14, "#1a0b33");
-    rect(windowX + 6, 40, 1, 1, "#ffffff");
-    rect(windowX + 15, 46, 1, 1, "#ffffff");
+  rect(0, INSIDE_FLOOR_TOP, GAME_WIDTH, GAME_HEIGHT - INSIDE_FLOOR_TOP, "#5b6375");
+  rect(0, INSIDE_FLOOR_TOP, GAME_WIDTH, 2, "#7b8496");
+  for (let y = INSIDE_FLOOR_TOP + 12; y < GAME_HEIGHT; y += 14) {
+    rect(0, y, GAME_WIDTH, 1, "#4c5466");
   }
+}
+
+// A doorway on the back wall with a small green light above it
+function drawDoorway(door) {
+  const drewImage = drawPart(ctx, images.interiorFurniture, INTERIOR.doorway,
+                             door.x + door.width / 2 - 12, INSIDE_FLOOR_TOP - 36, 24, 36);
+  if (!drewImage) {
+    rect(door.x - 2, INSIDE_FLOOR_TOP - 34, door.width + 4, 34, "#6b7380");
+    rect(door.x, INSIDE_FLOOR_TOP - 32, door.width, 32, "#1c1f26");
+  }
+  rect(door.x + door.width / 2 - 1, INSIDE_FLOOR_TOP - 41, 3, 3, "#5fd39a");
+}
+
+function drawInsideRoom(time) {
+  if (!drawWallAndFloor(INTERIOR.wallMain, INTERIOR.floorMain)) {
+    drawPlaceholderWallAndFloor("#3b4252");
+  }
+
+  // Windows (metal shutters), shown at half size
+  for (const windowX of [62, 222]) {
+    if (!drawPart(ctx, images.interiorFurniture, INTERIOR.window, windowX, 30, 38, 25)) {
+      rect(windowX, 35, 24, 18, "#6b7380");
+      rect(windowX + 2, 37, 20, 14, "#1a0b33");
+    }
+  }
+
+  // A potted plant beside the monitor
+  drawPart(ctx, images.interiorFurniture, INTERIOR.plant, 94, INSIDE_FLOOR_TOP - 33, 21, 35);
 
   // The ship monitor that opens the tutorial.
   // Team artwork: Monitor.gif, shown 2x (64x64) standing on the floor.
@@ -1523,39 +1673,32 @@ function drawInsideRoom(time) {
     rect(164, 92, 6, 4, "#9df5c4");
   }
 
-  // Exit door on the back wall
-  rect(exitDoor.x - 2, INSIDE_FLOOR_TOP - 34, exitDoor.width + 4, 34, "#6b7380");
-  rect(exitDoor.x, INSIDE_FLOOR_TOP - 32, exitDoor.width, 32, "#1c1f26");
-  rect(exitDoor.x + exitDoor.width / 2 - 1, INSIDE_FLOOR_TOP - 40, 3, 3, "#5fd39a"); // green "exit" light
+  // Exit door (left) and storage room door (right)
+  drawDoorway(exitDoor);
+  drawDoorway(storageDoor);
 
-  // Storage room door (right side) with a blue "O2" sign as a clue
-  rect(storageDoor.x - 2, INSIDE_FLOOR_TOP - 34, storageDoor.width + 4, 34, "#6b7380");
-  rect(storageDoor.x, INSIDE_FLOOR_TOP - 32, storageDoor.width, 32, "#1c1f26");
-  rect(storageDoor.x - 2, 60, storageDoor.width + 4, 10, "#1c3a5a");
-  label("O2", storageDoor.x + storageDoor.width / 2, 67, "#9fd3ff");
+  // Blue "O2" sign above the storage door, as a clue
+  rect(storageDoor.x - 2, 50, storageDoor.width + 4, 10, "#1c3a5a");
+  label("O2", storageDoor.x + storageDoor.width / 2, 57, "#9fd3ff");
   if (!oxygenTank.collected && Math.floor(time * 2) % 2 === 0) {
     // Blinking arrow pointing down at the door
-    rect(storageDoor.x + 5, 71, 6, 1, "#ffd84d");
-    rect(storageDoor.x + 6, 72, 4, 1, "#ffd84d");
-    rect(storageDoor.x + 7, 73, 2, 1, "#ffd84d");
-  }
-
-  // Metal floor with grating lines
-  rect(0, INSIDE_FLOOR_TOP, GAME_WIDTH, GAME_HEIGHT - INSIDE_FLOOR_TOP, "#5b6375");
-  rect(0, INSIDE_FLOOR_TOP, GAME_WIDTH, 2, "#7b8496");
-  for (let y = INSIDE_FLOOR_TOP + 12; y < GAME_HEIGHT; y += 14) {
-    rect(0, y, GAME_WIDTH, 1, "#4c5466");
+    rect(storageDoor.x + 5, 62, 6, 1, "#ffd84d");
+    rect(storageDoor.x + 6, 63, 4, 1, "#ffd84d");
+    rect(storageDoor.x + 7, 64, 2, 1, "#ffd84d");
   }
 }
 
 function drawCot(time) {
   const top = cot.y - 16;
 
-  // Legs and mattress
-  rect(cot.x + 2, top + 8, 3, 8, "#2e3440");
-  rect(cot.x + cot.width - 5, top + 8, 3, 8, "#2e3440");
-  rect(cot.x, top + 4, cot.width, 5, "#8a919c");
-  rect(cot.x, top + 2, cot.width, 3, "#d8dee9");
+  // Team artwork: a bed from "Interior (1).png" at its real size (64x52)
+  if (!drawPart(ctx, images.interiorFurniture, INTERIOR.bed, cot.x, cot.y - 52, 64, 52)) {
+    // Placeholder cot: legs and mattress
+    rect(cot.x + 2, top + 8, 3, 8, "#2e3440");
+    rect(cot.x + cot.width - 5, top + 8, 3, 8, "#2e3440");
+    rect(cot.x, top + 4, cot.width, 5, "#8a919c");
+    rect(cot.x, top + 2, cot.width, 3, "#d8dee9");
+  }
 
   drawAstronaut();
 
@@ -1568,12 +1711,18 @@ function drawCot(time) {
   rect(monitorX + 1 + blipX, top - 14, 1, 3, "#5fd39a");
 
   // Label so it's clear she can't move
-  label("UNCONSCIOUS", cot.x + 30, top - 10, "#ff8a8a");
+  label("UNCONSCIOUS", cot.x + cot.width / 2, cot.y - 55, "#ff8a8a");
 }
 
 function drawAstronaut() {
-  // PLACEHOLDER: replace with your team's astronaut sprite later.
-  // She is lying on the cot, unconscious, and never moves.
+  // She is lying on the bed, unconscious, and never moves.
+  // Team artwork: one frame from "Astronaut frames.png" (lying on her back), at its real size
+  const frame = ASTRONAUT_LYING;
+  if (drawPart(ctx, images.astronaut, frame, cot.x + cot.width / 2 - frame.width / 2,
+               cot.y - 42, frame.width, frame.height)) {
+    return;
+  }
+  // Placeholder astronaut
   const left = cot.x + 8;
   const top = cot.y - 22;
 
@@ -1605,40 +1754,42 @@ function drawInside(time) {
 // =============================================
 
 function drawStorageRoom(time) {
-  // Back wall with panel lines
-  rect(0, 0, GAME_WIDTH, INSIDE_FLOOR_TOP, "#353b48");
-  for (let x = 0; x < GAME_WIDTH; x += 40) {
-    rect(x, 0, 1, INSIDE_FLOOR_TOP, "#2e3440");
+  const furniture = images.interiorFurniture;
+  if (!drawWallAndFloor(INTERIOR.wallStorage, INTERIOR.floorStorage)) {
+    drawPlaceholderWallAndFloor("#353b48");
   }
-  label("STORAGE", 160, 14, "#9aa3ad");
 
-  // Shelves with boxes
-  for (const shelfY of [45, 75]) {
-    rect(80, shelfY, 150, 3, "#6b7380");
-    rect(88, shelfY - 8, 12, 8, "#8b6b3e");
-    rect(120, shelfY - 6, 10, 6, "#4c566a");
-    rect(150, shelfY - 10, 14, 10, "#8b6b3e");
-    rect(200, shelfY - 7, 16, 7, "#4c566a");
+  // Shelves full of supplies against the back wall (team artwork)
+  const wide = drawPart(ctx, furniture, INTERIOR.shelfWide, 88, INSIDE_FLOOR_TOP - 64, 128, 64);
+  drawPart(ctx, furniture, INTERIOR.rack, 222, INSIDE_FLOOR_TOP - 62, 42, 62);
+  drawPart(ctx, furniture, INTERIOR.shelfTall, 270, INSIDE_FLOOR_TOP - 96, 48, 96);
+  if (!wide) {
+    // Placeholder shelves with boxes
+    for (const shelfY of [45, 75]) {
+      rect(80, shelfY, 150, 3, "#6b7380");
+      rect(88, shelfY - 8, 12, 8, "#8b6b3e");
+      rect(120, shelfY - 6, 10, 6, "#4c566a");
+      rect(150, shelfY - 10, 14, 10, "#8b6b3e");
+      rect(200, shelfY - 7, 16, 7, "#4c566a");
+    }
   }
+  label("STORAGE", 152, 20, "#ffffff");
 
   // Dim red emergency light
   const blinkOn = Math.floor(time * 2) % 2 === 0;
-  rect(290, 22, 6, 3, blinkOn ? "#ff3b3b" : "#5a1111");
+  rect(66, 22, 6, 3, blinkOn ? "#ff3b3b" : "#5a1111");
 
   // Door back to the main room
-  rect(storageExit.x - 2, INSIDE_FLOOR_TOP - 34, storageExit.width + 4, 34, "#6b7380");
-  rect(storageExit.x, INSIDE_FLOOR_TOP - 32, storageExit.width, 32, "#1c1f26");
-  rect(storageExit.x + storageExit.width / 2 - 1, INSIDE_FLOOR_TOP - 40, 3, 3, "#5fd39a");
-
-  // Metal floor with grating lines
-  rect(0, INSIDE_FLOOR_TOP, GAME_WIDTH, GAME_HEIGHT - INSIDE_FLOOR_TOP, "#5b6375");
-  rect(0, INSIDE_FLOOR_TOP, GAME_WIDTH, 2, "#7b8496");
-  for (let y = INSIDE_FLOOR_TOP + 12; y < GAME_HEIGHT; y += 14) {
-    rect(0, y, GAME_WIDTH, 1, "#4c5466");
-  }
+  drawDoorway(storageExit);
 }
 
 function drawCrate(crate) {
+  // Team artwork: a cabinet from "Interior (1).png"
+  if (drawPart(ctx, images.interiorFurniture, INTERIOR[crate.sprite],
+               crate.x, crate.y - crate.height, crate.width, crate.height)) {
+    return;
+  }
+  // Placeholder wooden crate
   const top = crate.y - crate.height;
   rect(crate.x, top, crate.width, crate.height, "#8b6b3e");
   rect(crate.x, top, crate.width, 2, "#a8844f");
@@ -1714,6 +1865,26 @@ const LAIKA_FRAMES = [
   { x: 37, y: 461, width: 507, height: 346 }  // frame 2: tail up, legs moved
 ];
 
+// Draws Space helmet.png (size x size) on any canvas at (x, y).
+// The visor faces right in the image, so it is flipped when facing left.
+// If the image is missing, nothing is drawn.
+function drawHelmet(context, x, y, size, facingRight) {
+  if (!imageReady(images.spaceHelmet)) {
+    return;
+  }
+  const crop = HELMET_CROP;
+  context.save();
+  if (facingRight) {
+    context.drawImage(images.spaceHelmet, crop.x, crop.y, crop.width, crop.height,
+                      Math.round(x), Math.round(y), size, size);
+  } else {
+    context.translate(Math.round(x) + size, Math.round(y));
+    context.scale(-1, 1);
+    context.drawImage(images.spaceHelmet, crop.x, crop.y, crop.width, crop.height, 0, 0, size, size);
+  }
+  context.restore();
+}
+
 function drawDog(time) {
   const top = dog.y - dog.height;
 
@@ -1752,6 +1923,9 @@ function drawDog(time) {
     ctx.restore();
     backY = dog.y - 11;
     sideY = dog.y - 7;
+
+    // Space helmet over her head (her head is at the nose end of the sprite)
+    drawHelmet(ctx, part(13, 14), y - 3, 14, dog.facing === 1);
   } else {
     // Placeholder dachshund (if Laika.png is missing)
     const ptop = dog.y - 9;
@@ -1767,6 +1941,7 @@ function drawDog(time) {
     rect(part(14 - step, 2), ptop + 7, 2, 2, "#5c2e10");  // front legs
     backY = dog.y - 6;
     sideY = dog.y - 4;
+    drawHelmet(ctx, part(15, 8), ptop - 2, 8, dog.facing === 1);
   }
 
   // Oxygen tank lying flat across her back, valve pointing to her head
@@ -1787,12 +1962,16 @@ function drawDog(time) {
 
   // Communication device (radio): carried in her mouth, then strapped to her side for good
   if (commDevice.attached) {
-    rect(part(7, 3), sideY - 1, 3, 3, "#4c566a");           // small box on her side
-    rect(part(8, 1), sideY - 3, 1, 2, "#8a919c");           // tiny antenna
+    if (!drawPart(ctx, images.radio, RADIO_CROP, part(7, 3), sideY - 4, 3, 7)) { // small radio on her side
+      rect(part(7, 3), sideY - 1, 3, 3, "#4c566a");
+      rect(part(8, 1), sideY - 3, 1, 2, "#8a919c");
+    }
     const lightOn = Math.floor(time * 2) % 2 === 0;
-    rect(part(9, 1), sideY, 1, 1, lightOn ? "#5fd39a" : "#1f5a3a"); // green = working
+    rect(part(10, 1), sideY, 1, 1, lightOn ? "#5fd39a" : "#1f5a3a"); // green = working
   } else if (commDevice.collected) {
-    rect(part(dog.width - 1, 3), sideY - 2, 3, 3, "#4c566a"); // held in her mouth
+    if (!drawPart(ctx, images.radio, RADIO_CROP, part(dog.width - 1, 3), sideY - 6, 3, 7)) { // held in her mouth
+      rect(part(dog.width - 1, 3), sideY - 2, 3, 3, "#4c566a");
+    }
   }
 }
 

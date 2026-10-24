@@ -205,20 +205,43 @@ body {
 /* ----- Objective tracker (top-right) ----- */
 #objectives {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  max-width: 280px;
-  padding: 10px 14px;
+  top: 8px;
+  right: 8px;
+  max-width: 200px;
+  padding: 6px 9px;
   background: rgba(10, 5, 30, 0.8);
   border: 2px solid #ffd84d;
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* Title and the Hide/Show button on one line */
+.objectives-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
 #objectives h2 {
-  margin: 0 0 6px 0;
-  font-size: 16px;
+  margin: 0;
+  font-size: 12px;
   color: #ffd84d;
+}
+
+#objectives-toggle {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 6px;
+  color: #1a0b33;
+  background: #ffd84d;
+  border: 1px solid #e8fff2;
+  cursor: pointer;
+}
+
+#objectives-body {
+  margin-top: 4px;
 }
 
 #objectives p {
@@ -231,13 +254,13 @@ body {
 }
 
 #objective-hint {
-  margin-top: 6px !important;
+  margin-top: 4px !important;
   font-style: italic;
   color: #9df5c4;
 }
 
 .treat-line {
-  margin-top: 6px !important;
+  margin-top: 4px !important;
   color: #f2d3a0;
   font-weight: bold;
 }

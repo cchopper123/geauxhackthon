@@ -31,7 +31,7 @@ This is an early version.
   heart monitor
 - Ship monitor tutorial: press E at the monitor inside the ship to see the
   story, the main objective, and blinking picture steps Laika can understand
-  (other room → oxygen tank → bring it to her human → go outside → find the
+  (other room → oxygen tank → put it on → go outside → find the
   communication device → attach it to her space suit → get a Treat)
 - Storage room: a second room inside the ship, through the door with the blue
   O2 sign
@@ -60,6 +60,7 @@ The ending (restoring life support) is not built yet.
 | E (at the ship with device)  | Attach the device to Laika    |
 | Esc / Close button           | Close the tutorial            |
 | H                            | Show / hide controls panel    |
+| O / Hide button              | Hide / show objectives list   |
 
 ## Editing the cutscene
 
@@ -122,6 +123,12 @@ the top of `game.js`.
 | `assets/Oxygen tank.png` | Oxygen tank in the storage room, on Laika's back, and in the tutorial pictures | Our team (add artist name) |
 | `assets/Monitor.gif` | The ship monitor inside the ship that opens the tutorial (animated GIF, shown 2x) | Our team (add artist name) |
 | `assets/Laika.png` | Laika, the playable dachshund (sprite sheet: 1 column x 2 rows, both frames face left). Walking switches frames quickly; standing switches slowly for a tail wag. Also used in the tutorial pictures | Our team (add artist name) |
+| `assets/Astronaut frames.png` | The unconscious astronaut lying on the bed (sprite sheet: 30 columns x 5 rows; one "lying on her back" frame from the falling-down row is used, because she can't move) | Our team (add artist name) |
+| `assets/Radio.png` | The communication device: on the ground, in Laika's mouth, on her side, and in the tutorial pictures | Our team (add artist name) |
+| `assets/Interior (2).png` | Walls and floors inside the ship (blue-gray panels and gray tiles in the main room, beige panels and teal tiles in the storage room) | Our team (add artist name) |
+| `assets/Interior (1).png` | Furniture inside the ship: the astronaut's bed, doorways, windows, a plant, storage shelves and a rack, and the cabinets in the storage room | Our team (add artist name) |
+| `assets/Space helmet.png` | Laika's space helmet (flips with her; also in the tutorial pictures) | Our team (add artist name) |
+| `assets/rocks.png` | Rocks knocked loose by the crash, scattered around the planet (a sheet of loose rocks; the small and medium ones are used) | Our team (add artist name) |
 | `assets/Blue tree.png`, `Blue tree 2.png`, `Cool blue tree.png`, `Purple tree.png`, `Purple tree 2.png` | Trees along the horizon on the planet | Our team (add artist name) |
 
 Notes:

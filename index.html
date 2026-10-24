@@ -50,17 +50,23 @@
     <p><b>Move:</b> WASD or Arrow Keys</p>
     <p><b>Enter / exit ship:</b> walk up (W) into the door</p>
     <p><b>Interact (monitor, pick up, attach):</b> E</p>
-    <p><b>Hide this panel:</b> H</p>
+    <p><b>Hide this panel:</b> H &nbsp; <b>Hide objectives:</b> O</p>
   </div>
 
   <!-- 5. Objective tracker (shown during gameplay) -->
   <div id="objectives" class="hidden">
-    <h2>Objectives</h2>
-    <p id="objective-oxygen"></p>
-    <p id="objective-device"></p>
-    <p id="objective-attach"></p>
-    <p id="objective-hint"></p>
-    <p class="treat-line">Treats: <span id="treat-count">0</span></p>
+    <div class="objectives-header">
+      <h2>Objectives</h2>
+      <!-- Hides or shows the list (also the O key) -->
+      <button id="objectives-toggle" title="Hide / show objectives (O)">Hide</button>
+    </div>
+    <div id="objectives-body">
+      <p id="objective-oxygen"></p>
+      <p id="objective-device"></p>
+      <p id="objective-attach"></p>
+      <p id="objective-hint"></p>
+      <p class="treat-line">Treats: <span id="treat-count">0</span></p>
+    </div>
   </div>
 
   <!-- 6. Pop-up message, e.g. "Oxygen tank collected!" -->
