@@ -1,0 +1,219 @@
+/* Remove default page spacing so the game fills the window */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* no scrollbars */
+  background: #000;
+  font-family: "Courier New", monospace;
+  color: #e8fff2;
+}
+
+/* The canvas is centered; game.js sets its exact size */
+#game {
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated; /* keep pixel art sharp when scaled */
+}
+
+/* Anything with this class is not shown */
+.hidden {
+  display: none !important;
+}
+
+/* ----- Title screen and menu ----- */
+/* Full-window layers on top of the canvas, content centered */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.game-title {
+  margin: 0 0 10px 0;
+  font-size: clamp(36px, 8vw, 96px);
+  line-height: 1;
+  color: #ffd84d;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  /* Hard, blocky shadow for a pixel-art look */
+  text-shadow: 4px 4px 0 #ff6fd8, 8px 8px 0 #1a0b33;
+}
+
+.subtitle {
+  margin: 0 0 30px 0;
+  font-size: clamp(14px, 2vw, 20px);
+  color: #9df5c4;
+}
+
+.menu-title {
+  margin: 0 0 24px 0;
+  font-size: clamp(28px, 5vw, 56px);
+  color: #ffd84d;
+  text-shadow: 4px 4px 0 #1a0b33;
+}
+
+/* Chunky pixel-style button */
+.pixel-button {
+  font-family: inherit;
+  font-size: clamp(18px, 2.5vw, 28px);
+  font-weight: bold;
+  padding: 12px 36px;
+  color: #1a0b33;
+  background: #9df5c4;
+  border: 4px solid #e8fff2;
+  box-shadow: 4px 4px 0 #1a0b33;
+  cursor: pointer;
+}
+
+.pixel-button:hover,
+.pixel-button:focus {
+  background: #ffd84d;
+  outline: none;
+}
+
+.pixel-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #1a0b33;
+}
+
+.pixel-button.small {
+  font-size: 16px;
+  padding: 6px 16px;
+}
+
+/* ----- Dialogue box ----- */
+#dialogue-box {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(90vw, 900px);
+  box-sizing: border-box;
+  padding: 14px 18px;
+  background: rgba(10, 5, 30, 0.92);
+  border: 4px solid #e8fff2;
+  box-shadow: 6px 6px 0 #000;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Character face: drawn at 32x32 pixels, shown 3x bigger */
+#dialogue-portrait {
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  border: 3px solid #e8fff2;
+  image-rendering: pixelated;
+}
+
+.dialogue-content {
+  flex: 1;
+}
+
+#dialogue-speaker {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+#dialogue-text {
+  font-size: clamp(16px, 2vw, 22px);
+  min-height: 2.6em; /* keeps the box from jumping as text types in */
+  line-height: 1.3;
+}
+
+.dialogue-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.dialogue-hint {
+  font-size: 13px;
+  color: #8877aa;
+}
+
+/* ----- Ship monitor tutorial ----- */
+#tutorial {
+  background: rgba(0, 0, 0, 0.6); /* dim the game behind the panel */
+}
+
+.tutorial-panel {
+  width: min(90vw, 520px);
+  box-sizing: border-box;
+  padding: 16px 20px;
+  background: #111418;
+  border: 4px solid #5fd39a;
+  box-shadow: 6px 6px 0 #000;
+  color: #9df5c4;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.tutorial-panel h2 {
+  margin: 0 0 8px 0;
+  font-size: 22px;
+  color: #5fd39a;
+}
+
+.tutorial-panel p {
+  margin: 0 0 10px 0;
+}
+
+/* Picture instructions: drawn at 96x48 pixels, shown 4x bigger */
+#tutorial-canvas {
+  width: 384px;
+  max-width: 100%;
+  image-rendering: pixelated;
+  border: 3px solid #3b4252;
+}
+
+#tutorial-caption {
+  min-height: 1.4em;
+  font-weight: bold;
+  color: #ffd84d;
+}
+
+.tutorial-goal {
+  color: #e8fff2;
+}
+
+.tutorial-treats b {
+  color: #f2d3a0;
+}
+
+/* ----- Control instruction panel (gameplay) ----- */
+#controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  max-width: 300px;
+  padding: 10px 14px;
+  background: rgba(10, 5, 30, 0.8);
+  border: 2px solid #9df5c4;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+#controls h1 {
+  margin: 0 0 6px 0;
+  font-size: 16px;
+  color: #ffd84d;
+}
+
+#controls p {
+  margin: 0;
+}

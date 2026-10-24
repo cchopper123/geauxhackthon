@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wiener Dog in Space</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- The whole game world is drawn on this canvas by game.js -->
+  <canvas id="game"></canvas>
+
+  <!-- 1. Title screen (shown first) -->
+  <div id="title-screen" class="screen">
+    <h1 class="game-title">Wiener Dog<br>in Space</h1>
+    <p class="subtitle">A pixel-art rescue adventure</p>
+    <button id="start-button" class="pixel-button">Start</button>
+  </div>
+
+  <!-- 2. Menu (shown after clicking Start) -->
+  <div id="menu-screen" class="screen hidden">
+    <h2 class="menu-title">Menu</h2>
+    <button id="new-game-button" class="pixel-button">New Game</button>
+  </div>
+
+  <!-- 3. Dialogue box (shown during the crash cutscene) -->
+  <div id="dialogue-box" class="hidden">
+    <!-- Face of the character who is talking (drawn by game.js) -->
+    <canvas id="dialogue-portrait" width="32" height="32"></canvas>
+    <div class="dialogue-content">
+      <div id="dialogue-speaker"></div>
+      <div id="dialogue-text"></div>
+      <div class="dialogue-footer">
+        <span class="dialogue-hint">Space / Enter</span>
+        <button id="dialogue-next" class="pixel-button small">Next &#9654;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Control instructions (shown during gameplay) -->
+  <div id="controls" class="hidden">
+    <h1>Wiener Dog in Space</h1>
+    <p>You play as <b>Laika</b> the dachshund.</p>
+    <p>The astronaut is unconscious inside the ship and can't move.</p>
+    <p><b>Move:</b> WASD or Arrow Keys</p>
+    <p><b>Enter / exit ship:</b> walk up (W) into the door</p>
+    <p><b>Use ship monitor:</b> E (stand in front of it)</p>
+    <p><b>Hide this panel:</b> H</p>
+  </div>
+
+  <!-- 5. Ship monitor tutorial (opened with E at the monitor) -->
+  <div id="tutorial" class="screen hidden">
+    <div class="tutorial-panel">
+      <h2>&#9632; Ship Monitor &#9632;</h2>
+      <p class="tutorial-story">
+        CRASH LOG: The ship crashed on an alien planet. Life support is failing
+        and your human is unconscious. Only you can help, Laika!
+      </p>
+      <!-- The picture instructions are drawn here by game.js -->
+      <canvas id="tutorial-canvas" width="96" height="48"></canvas>
+      <p id="tutorial-caption"></p>
+      <p class="tutorial-goal">
+        <b>Main objective:</b> Collect the oxygen tank and the communication
+        device, then return to the ship.
+      </p>
+      <p class="tutorial-treats">
+        Reward: <b>Treats</b>. Treats are your money &ndash; save them up to spend later!
+      </p>
+      <button id="tutorial-close" class="pixel-button small">Close (E / Esc)</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
