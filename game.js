@@ -41,6 +41,103 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
+// ----- Images (from the assets folder) -----
+// Anything without an image here is still drawn with placeholder shapes.
+// If an image is missing, the game keeps its placeholder and prints a
+// warning in the browser console (F12).
+function loadImage(path) {
+  const image = new Image();
+  image.onerror = function () {
+    console.warn("Missing asset: " + path + " (using placeholder instead)");
+  };
+  image.src = path;
+  return image;
+}
+
+// True once an image has loaded successfully
+function imageReady(image) {
+  return image.complete && image.naturalWidth > 0;
+}
+
+const images = {
+  spaceBackground: loadImage("assets/Space Background.png"),
+  planetBackground: loadImage("assets/Planet Background.png"),
+  planetGround: loadImage("assets/Planet ground.png"),
+  spaceship: loadImage("assets/Spaceship.png"),
+  oxygenTank: loadImage("assets/Oxygen tank.png"),
+  laika: loadImage("assets/Laika.png")
+};
+
+// The part of "Oxygen tank.png" that has the tank in it (the rest is empty)
+const OXYGEN_TANK_CROP = { x: 196, y: 88, width: 108, height: 324 };
+
+// Trees on the planet. The tree images are drawn 8x bigger than their pixel
+// art, so we draw them at 1/8 size (64 game pixels wide).
+// baseY = how far down the image the trunk meets the ground (game pixels).
+// x = left edge. They stand along the horizon, behind everything else.
+const TREES = [
+  { image: loadImage("assets/Blue tree 2.png"), x: -6, width: 64, height: 96, baseY: 83 },
+  { image: loadImage("assets/Purple tree.png"), x: 112, width: 64, height: 64, baseY: 59 },
+  { image: loadImage("assets/Blue tree.png"), x: 160, width: 64, height: 96, baseY: 88 },
+  { image: loadImage("assets/Cool blue tree.png"), x: 208, width: 64, height: 96, baseY: 90 },
+  { image: loadImage("assets/Purple tree 2.png"), x: 262, width: 64, height: 64, baseY: 59 }
+];
+
+// ----- Animated GIFs -----
+// Browsers only keep a GIF animating when it is shown as a real <img>,
+// not when it is drawn on a canvas. So each GIF is an <img> in index.html,
+// placed on top of the canvas. Draw code calls showGif() to say where it
+// goes this frame; updateGifImages() then moves the <img> into place.
+// If a GIF is missing, the canvas draws a placeholder instead.
+const gifs = {
+  world: { element: document.getElementById("title-world"), path: "assets/Title screen World.gif", view: null },
+  monitor: { element: document.getElementById("monitor-gif"), path: "assets/Monitor.gif", view: null }
+};
+for (const name in gifs) {
+  const gif = gifs[name];
+  gif.element.addEventListener("error", function () {
+    console.warn("Missing asset: " + gif.path + " (using placeholder instead)");
+  });
+}
+
+// Shows a GIF this frame at (x, y) with the given size, in game pixels.
+// Returns false if the GIF isn't loaded, so the caller can draw a placeholder.
+function showGif(gif, x, y, width, height) {
+  if (!imageReady(gif.element)) {
+    return false;
+  }
+  gif.view = { x: x, y: y, width: width, height: height };
+  return true;
+}
+
+// Moves each GIF <img> to line up with the canvas (called every frame,
+// so it also follows the window when it is resized)
+function updateGifImages() {
+  const canvasLeft = (window.innerWidth - canvas.width) / 2;
+  const canvasTop = (window.innerHeight - canvas.height) / 2;
+  for (const name in gifs) {
+    const gif = gifs[name];
+    if (!gif.view) {
+      gif.element.classList.add("hidden");
+      continue;
+    }
+    gif.element.classList.remove("hidden");
+    gif.element.style.left = (canvasLeft + gif.view.x * scale) + "px";
+    gif.element.style.top = (canvasTop + gif.view.y * scale) + "px";
+    gif.element.style.width = (gif.view.width * scale) + "px";
+    gif.element.style.height = (gif.view.height * scale) + "px";
+    gif.element.style.opacity = 1 - screenFade; // fades with the screen
+  }
+}
+
+// Shows the spinning planet (the planet they crash on) with its center at
+// (x, y) and the given radius. Uses the placeholder planet if the GIF is missing.
+function drawWorld(x, y, radius) {
+  if (!showGif(gifs.world, x - radius, y - radius, radius * 2, radius * 2)) {
+    drawPlanet(x, y, radius);
+  }
+}
+
 // ----- HTML elements -----
 const titleScreen = document.getElementById("title-screen");
 const menuScreen = document.getElementById("menu-screen");
@@ -56,12 +153,23 @@ const controlsPanel = document.getElementById("controls");
 const tutorialPanel = document.getElementById("tutorial");
 const tutorialCanvas = document.getElementById("tutorial-canvas");
 const tutorialCtx = tutorialCanvas.getContext("2d");
+tutorialCtx.imageSmoothingEnabled = false; // keep images sharp in the tutorial pictures
 const tutorialCaption = document.getElementById("tutorial-caption");
 const tutorialClose = document.getElementById("tutorial-close");
+const objectivesPanel = document.getElementById("objectives");
+const objectiveOxygen = document.getElementById("objective-oxygen");
+const objectiveDevice = document.getElementById("objective-device");
+const objectiveAttach = document.getElementById("objective-attach");
+const objectiveHint = document.getElementById("objective-hint");
+const treatCount = document.getElementById("treat-count");
+const messageBox = document.getElementById("message");
 
 // ----- Game state -----
 let state = "title";        // always start on the title screen
-let currentScene = "outside"; // during play: "outside" or "inside"
+let currentScene = "outside"; // during play: "outside", "inside" or "storage"
+let messageTimer = 0;       // seconds left to show the pop-up message
+let attachEffectTime = 0;   // seconds left of the "device attached" sparkles
+let waitForUpRelease = false; // true right after using a door (see updatePlay)
 let screenFade = 0;         // 0 = normal, 1 = fully black (used for transitions)
 let playTime = 0;           // seconds since gameplay started
 let tutorialTime = 0;       // seconds since the tutorial was opened
@@ -87,7 +195,9 @@ const CUTSCENE_LINES = [
   { speaker: "Computer", text: "Emergency landing sequence activated.", phase: "descending" },
   { speaker: "Computer", text: "Warning. Life-support systems damaged.", phase: "descending" },
   { speaker: "Astronaut", text: "I need to get us out of here...", phase: "descending" },
-  { speaker: "Computer", text: "Critical systems failure.", phase: "impact" },
+  // "wait" = seconds before this line can be skipped (so the crash can be seen)
+  { speaker: "Computer", text: "Critical systems failure.", phase: "impact", wait: 2.5 },
+  { speaker: "Computer", text: "Warning. Communication device lost.", phase: "impact" },
   { speaker: "Narration", text: "The astronaut loses consciousness after the crash.", phase: "blackout" },
   { speaker: "Narration", text: "Laika is okay, but her human needs help.", phase: "laika" },
   { speaker: "Narration", text: "... she seems unconscious?", phase: "inside" },
@@ -155,6 +265,23 @@ const INTRO_TIME = 2.5;     // seconds of flying before the first line appears
 const TYPE_SPEED = 35;       // letters per second for the typing effect
 const MIN_LINE_TIME = 0.8;   // a line can't be skipped faster than this (seconds)
 const IMPACT_FLY_TIME = 1.2; // seconds for the ship to fall onto the ground
+const DEBRIS_FLY_TIME = 0.8; // seconds for debris to land after the crash
+const DEVICE_FLY_TIME = 1.4; // seconds for the communication device to land
+
+// Pieces of wreckage thrown from the ship. They fly out during the crash
+// and stay on the ground for the rest of the game. (x, y) = where they land.
+const CRASH_DEBRIS = [
+  { x: 8, y: 140, width: 10, height: 4, color: "#6b7380" },
+  { x: 15, y: 156, width: 7, height: 3, color: "#555b66" },
+  { x: 110, y: 145, width: 8, height: 3, color: "#8a919c" },
+  { x: 125, y: 161, width: 5, height: 4, color: "#b8c0cc" },
+  { x: 150, y: 150, width: 10, height: 4, color: "#6b7380" },
+  { x: 182, y: 170, width: 4, height: 3, color: "#b8c0cc" },
+  { x: 215, y: 158, width: 9, height: 3, color: "#8a919c" },
+  { x: 248, y: 169, width: 6, height: 4, color: "#555b66" },
+  { x: 262, y: 150, width: 12, height: 3, color: "#6b7380" },
+  { x: 296, y: 167, width: 6, height: 3, color: "#b8c0cc" }
+];
 
 // Everything the cutscene needs to remember while it plays
 const cutscene = {
@@ -193,10 +320,13 @@ window.addEventListener("keydown", function (event) {
     controlsPanel.classList.toggle("hidden");
   }
 
-  // E opens the tutorial at the monitor. E or Escape closes it.
+  // E interacts with whatever Laika is next to. E or Escape closes the tutorial.
   if (!event.repeat) {
-    if (state === "play" && key === "e" && dogNearMonitor()) {
-      openTutorial();
+    if (state === "play" && key === "e") {
+      const interaction = getInteraction();
+      if (interaction) {
+        interaction.action();
+      }
     } else if (state === "tutorial" && (key === "e" || key === "escape")) {
       closeTutorial();
     }
@@ -234,8 +364,8 @@ tutorialClose.addEventListener("click", closeTutorial);
 const dog = {
   x: 120,
   y: 160,    // y is the position of her FEET (bottom of the sprite)
-  width: 22, // body + head
-  height: 9,
+  width: 26, // size of the Laika sprite on screen (nose to tail)
+  height: 18,
   speed: 60, // game pixels per second
   facing: 1  // 1 = facing right, -1 = facing left
 };
@@ -250,7 +380,7 @@ const ship = {
 
 // The ship's entrance (outside). Walk UP into it to go inside.
 const shipDoor = {
-  x: ship.x + 48,
+  x: ship.x + 28, // on the belly of the crashed ship
   width: 10
 };
 
@@ -261,10 +391,10 @@ const exitDoor = {
 };
 
 // The monitor on the back wall inside the ship
-// (matches the control console drawn in drawInsideRoom)
+// (matches Monitor.gif drawn in drawInsideRoom: 64 pixels wide)
 const monitor = {
-  x: 130,
-  width: 80
+  x: 116,
+  width: 64
 };
 
 // The bed inside the ship where the astronaut lies unconscious
@@ -272,6 +402,44 @@ const cot = {
   x: 180,
   y: 140, // bottom of the cot legs
   width: 70
+};
+
+// Door on the main room's back wall (right side) that leads to the storage room
+const storageDoor = {
+  x: 296,
+  width: 16
+};
+
+// Door on the storage room's back wall that leads back to the main room
+const storageExit = {
+  x: 30,
+  width: 16
+};
+
+// Crates in the storage room. y = bottom of the crate.
+const crates = [
+  { x: 110, y: 150, width: 30, height: 22 },
+  { x: 170, y: 128, width: 24, height: 18 },
+  { x: 225, y: 165, width: 26, height: 16 }
+];
+
+// ----- Mission items -----
+// Mission 1: the oxygen tank, hidden in the storage room
+const oxygenTank = {
+  scene: "storage",
+  x: 270,  // center
+  y: 140,  // bottom
+  collected: false
+};
+
+// Mission 2: the communication device, thrown out of the ship during the crash.
+// (x, y) is where it lands on the planet.
+const commDevice = {
+  scene: "outside",
+  x: 282, // center
+  y: 160, // bottom
+  collected: false, // Laika picked it up
+  attached: false   // attached to Laika at the ship
 };
 
 // "Solid" areas the dog can't walk through, one list per scene.
@@ -282,9 +450,15 @@ const solids = {
   ],
   inside: [
     { x: cot.x, y: cot.y - 8, width: cot.width, height: 10 },
-    { x: cot.x + cot.width + 2, y: cot.y - 8, width: 12, height: 10 } // heart monitor stand
-  ]
+    { x: cot.x + cot.width + 2, y: cot.y - 8, width: 12, height: 10 }, // heart monitor stand
+    // The ship monitor: Laika stops in front of it (so her head doesn't go behind the GIF)
+    { x: monitor.x, y: INSIDE_FLOOR_TOP, width: monitor.width, height: 17 }
+  ],
+  storage: []
 };
+for (const crate of crates) {
+  solids.storage.push({ x: crate.x, y: crate.y - 8, width: crate.width, height: 10 });
+}
 
 // Stars: random positions created once at the start.
 // Each star has its own speed so space looks deep when it scrolls.
@@ -305,7 +479,6 @@ for (let i = 0; i < 100; i++) {
 function startNewGame() {
   state = "cutscene";
   menuScreen.classList.add("hidden");
-
   cutscene.time = 0;
   cutscene.lineIndex = -1;
   cutscene.ending = false;
@@ -315,13 +488,16 @@ function startNewGame() {
 
 function startGameplay() {
   state = "play";
-  currentScene = "outside";
+  currentScene = "inside";
   dialogueBox.classList.add("hidden");
   controlsPanel.classList.remove("hidden");
+  objectivesPanel.classList.remove("hidden");
+  updateObjectives();
 
-  // Laika starts in front of the ship's hatch
-  dog.x = shipDoor.x + shipDoor.width / 2 - dog.width / 2;
-  dog.y = ship.y + 14;
+  // Laika starts inside the ship, next to the unconscious astronaut
+  // (the same spot where the cutscene ends)
+  dog.x = cot.x - 30;
+  dog.y = cot.y + 8;
   dog.facing = 1;
 
   playTime = 0;
@@ -394,7 +570,7 @@ function advanceDialogue() {
   }
 
   // Give the player time to read before moving on
-  if (cutscene.lineTime < MIN_LINE_TIME) {
+  if (cutscene.lineTime < (line.wait || MIN_LINE_TIME)) {
     return;
   }
 
@@ -510,8 +686,15 @@ function updatePlay(deltaTime) {
     dog.y = oldY;
   }
 
+  // After going through a door, the player must let go of UP before
+  // another door works. Otherwise holding W would bounce straight back.
+  if (moveY >= 0) {
+    waitForUpRelease = false;
+  }
+
   // Doors: walking UP while lined up with a door changes the scene
-  if (moveY < 0) {
+  if (moveY < 0 && !waitForUpRelease) {
+    const sceneBefore = currentScene;
     if (currentScene === "outside" && dogLinedUpWith(shipDoor) && dog.y <= ship.y + 6) {
       // Enter the ship. Start just in front of the exit door.
       currentScene = "inside";
@@ -522,8 +705,128 @@ function updatePlay(deltaTime) {
       currentScene = "outside";
       dog.x = shipDoor.x + shipDoor.width / 2 - dog.width / 2;
       dog.y = ship.y + 14;
+    } else if (currentScene === "inside" && dogLinedUpWith(storageDoor) && dog.y <= minY + 1) {
+      // Go into the storage room. Start just in front of its door.
+      currentScene = "storage";
+      dog.x = storageExit.x + storageExit.width / 2 - dog.width / 2;
+      dog.y = INSIDE_FLOOR_TOP + 16;
+    } else if (currentScene === "storage" && dogLinedUpWith(storageExit) && dog.y <= minY + 1) {
+      // Back to the main room. Start just in front of the storage door.
+      currentScene = "inside";
+      dog.x = storageDoor.x + storageDoor.width / 2 - dog.width / 2;
+      dog.y = INSIDE_FLOOR_TOP + 16;
+    }
+
+    if (currentScene !== sceneBefore) {
+      waitForUpRelease = true;
     }
   }
+
+  attachEffectTime = Math.max(0, attachEffectTime - deltaTime);
+}
+
+// =============================================
+// MISSIONS (oxygen tank and communication device)
+// =============================================
+
+// True when Laika is standing next to an item in the same scene
+function dogNear(item) {
+  const dogMiddle = dog.x + dog.width / 2;
+  return currentScene === item.scene &&
+         Math.abs(dogMiddle - item.x) < 18 &&
+         Math.abs(dog.y - item.y) < 10;
+}
+
+// True when Laika is outside, right next to the crashed ship
+function dogAtShip() {
+  return currentScene === "outside" &&
+         dog.x + dog.width > ship.x - 10 &&
+         dog.x < ship.x + ship.width + 10 &&
+         dog.y <= ship.y + 24;
+}
+
+// Works out what pressing E would do right now.
+// Returns { text, x, y, action } or null if there is nothing to do.
+// Each item checks "collected"/"attached" so it can only happen once.
+function getInteraction() {
+  if (dogNearMonitor()) {
+    return { text: "Press E: monitor", x: monitor.x + monitor.width / 2, y: 42, action: openTutorial };
+  }
+  if (!oxygenTank.collected && dogNear(oxygenTank)) {
+    return { text: "Press E: take oxygen", x: oxygenTank.x, y: oxygenTank.y - 30, action: collectOxygen };
+  }
+  if (!commDevice.collected && dogNear(commDevice)) {
+    return { text: "Press E: pick up device", x: commDevice.x, y: commDevice.y - 18, action: collectDevice };
+  }
+  if (commDevice.collected && !commDevice.attached && dogAtShip()) {
+    return { text: "Press E: attach device", x: dog.x + dog.width / 2, y: dog.y - dog.height - 8, action: attachDevice };
+  }
+  return null;
+}
+
+function collectOxygen() {
+  oxygenTank.collected = true;
+  treats += 1;
+  showMessage("Oxygen tank collected! +1 Treat");
+  updateObjectives();
+}
+
+function collectDevice() {
+  commDevice.collected = true;
+  showMessage("Communication device recovered!");
+  updateObjectives();
+}
+
+function attachDevice() {
+  commDevice.attached = true;
+  attachEffectTime = 1.5;
+  treats += 1;
+  showMessage("Device attached to Laika! +1 Treat");
+  updateObjectives();
+}
+
+// Shows a pop-up message for a few seconds
+function showMessage(text) {
+  messageBox.textContent = text;
+  messageBox.classList.remove("hidden");
+  messageTimer = 2.5;
+}
+
+function updateMessage(deltaTime) {
+  if (messageTimer > 0) {
+    messageTimer -= deltaTime;
+    if (messageTimer <= 0) {
+      messageBox.classList.add("hidden");
+    }
+  }
+}
+
+// Writes one line of the objective tracker: [x] when done, [ ] when not
+function setObjective(element, done, text) {
+  element.textContent = (done ? "[x] " : "[ ] ") + text;
+  if (done) {
+    element.classList.add("done");
+  } else {
+    element.classList.remove("done");
+  }
+}
+
+// Refreshes the objective tracker and shows a hint for the next step
+function updateObjectives() {
+  setObjective(objectiveOxygen, oxygenTank.collected, "Find the oxygen tank");
+  setObjective(objectiveDevice, commDevice.collected, "Recover the communication device");
+  setObjective(objectiveAttach, commDevice.attached, "Attach the device at the ship");
+
+  let hint = "All items found! More coming soon...";
+  if (!oxygenTank.collected) {
+    hint = "Hint: look for the blue O2 sign on a door inside the ship.";
+  } else if (!commDevice.collected) {
+    hint = "Hint: follow the beeping signal outside, among the crash debris.";
+  } else if (!commDevice.attached) {
+    hint = "Hint: bring the device back to the ship and press E.";
+  }
+  objectiveHint.textContent = hint;
+  treatCount.textContent = treats;
 }
 
 // =============================================
@@ -535,7 +838,7 @@ function dogNearMonitor() {
   return currentScene === "inside" &&
          dog.x + dog.width > monitor.x &&
          dog.x < monitor.x + monitor.width &&
-         dog.y <= INSIDE_FLOOR_TOP + 20;
+         dog.y <= INSIDE_FLOOR_TOP + 26;
 }
 
 function openTutorial() {
@@ -570,6 +873,16 @@ function tArrow(x, y) {
 
 // Laika facing right. suit = true draws her in a white space suit.
 function tDog(x, y, suit) {
+  if (imageReady(images.laika)) {
+    // Team artwork: Laika.png frame 1, flipped to face right (feet at y + 9)
+    const frame = LAIKA_FRAMES[0];
+    tutorialCtx.save();
+    tutorialCtx.translate(x + 22, y - 6);
+    tutorialCtx.scale(-1, 1);
+    tutorialCtx.drawImage(images.laika, frame.x, frame.y, frame.width, frame.height, 0, 0, 22, 15);
+    tutorialCtx.restore();
+    return;
+  }
   tRect(x, y + 3, 2, 1, "#8b4a1f");                          // tail
   tRect(x + 2, y + 3, 16, 4, suit ? "#e0e0e0" : "#8b4a1f");  // body
   if (suit) tRect(x + 9, y + 3, 2, 4, "#ff6fd8");            // suit stripe
@@ -588,6 +901,9 @@ function tDoor(x, y) {
 }
 
 function tTank(x, y) {
+  if (drawOxygenImage(tutorialCtx, x + 1, y - 2, 6, 18)) {
+    return; // team artwork
+  }
   tRect(x + 2, y, 4, 2, "#d6dce4");  // valve
   tRect(x, y + 2, 8, 14, "#3fa7ff"); // tank
   tRect(x + 1, y + 3, 2, 10, "#9fd3ff");
@@ -690,8 +1006,8 @@ const TUTORIAL_STEPS = [
     caption: "Attach it to your space suit",
     draw: function (time) {
       tDog(36, 30, true);
-      tRect(42, 26, 6, 4, "#4c566a"); // device on her back
-      tRect(44, 22, 1, 4, "#8a919c"); // its antenna
+      tRect(44, 33, 3, 3, "#4c566a"); // small device on her side
+      tRect(45, 31, 1, 2, "#8a919c"); // its antenna
       tSparkle(32, 24, time);
       tSparkle(62, 26, time + 0.25);
     }
@@ -741,29 +1057,39 @@ function drawTutorialPictures(time) {
   }
 }
 
-// "Press E" hint above the monitor when Laika is close enough
-function drawMonitorPrompt(time) {
-  if (state === "play" && dogNearMonitor()) {
+// "Press E: ..." hint when Laika is close enough to something
+function drawInteractionPrompt(time) {
+  if (state !== "play") {
+    return;
+  }
+  const interaction = getInteraction();
+  if (interaction) {
     const bob = Math.sin(time * 5) * 1.5;
-    label("Press E", monitor.x + monitor.width / 2, 55 + bob, "#ffd84d");
+    const x = clamp(interaction.x, 45, GAME_WIDTH - 45); // keep text on screen
+    label(interaction.text, x, interaction.y + bob, "#ffd84d");
   }
 }
 
-// Treat counter in the top-right corner during gameplay
-function drawTreatCounter() {
-  const x = 282;
-  const y = 6;
-  rect(x, y, 3, 2, "#f2d3a0");
-  rect(x, y + 3, 3, 2, "#f2d3a0");
-  rect(x + 2, y + 1, 8, 3, "#f2d3a0");
-  rect(x + 9, y, 3, 2, "#f2d3a0");
-  rect(x + 9, y + 3, 3, 2, "#f2d3a0");
-  label("x " + treats, x + 24, y + 5, "#f2d3a0");
+// Sparkles around Laika right after the device is attached
+function drawAttachEffect(time) {
+  if (attachEffectTime <= 0) {
+    return;
+  }
+  const centerX = dog.x + dog.width / 2;
+  const centerY = dog.y - dog.height / 2;
+  const radius = 6 + (1.5 - attachEffectTime) * 10;
+  for (let i = 0; i < 8; i++) {
+    const angle = i * Math.PI / 4 + time * 3;
+    rect(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius * 0.6, 2, 2,
+         i % 2 === 0 ? "#ffd84d" : "#5fd39a");
+  }
 }
 
 // Only the current state gets updated, so Laika can't move
 // on the title screen, the menu, during the cutscene, or in the tutorial.
 function update(deltaTime) {
+  updateMessage(deltaTime);
+
   if (state === "cutscene") {
     updateCutscene(deltaTime);
   } else if (state === "play") {
@@ -813,14 +1139,48 @@ function lerp(a, b, amount) {
 // SPACE (title screen and the start of the cutscene)
 // =============================================
 
-// Black space with stars scrolling to the left at "speed" pixels per second
+// Draws an image side by side across the screen, scrolled left by "offset".
+// Every second copy is flipped, so the edges always match up with no seams.
+function drawScrollingImage(image, offset) {
+  const w = image.naturalWidth;
+  const y = Math.round((GAME_HEIGHT - image.naturalHeight) / 2); // center it vertically
+  let x = -(Math.floor(offset) % (w * 2));
+  let flipped = false;
+  while (x < GAME_WIDTH) {
+    if (flipped) {
+      ctx.save();
+      ctx.translate(x + w, y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(image, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.drawImage(image, x, y);
+    }
+    x += w;
+    flipped = !flipped;
+  }
+}
+
+// Space with stars scrolling to the left at "speed" pixels per second
 function drawSpace(time, speed) {
-  rect(0, 0, GAME_WIDTH, GAME_HEIGHT, "#0b0620");
+  if (imageReady(images.spaceBackground)) {
+    // Team artwork: Space Background.png, drifting slowly behind everything
+    drawScrollingImage(images.spaceBackground, time * speed * 0.25);
+    if (speed <= 40) {
+      return; // the image already has stars, so only add streaks when flying fast
+    }
+  } else {
+    // Placeholder if the image is missing
+    rect(0, 0, GAME_WIDTH, GAME_HEIGHT, "#0b0620");
+  }
   for (const star of stars) {
     const x = ((star.x - time * speed * star.speed) % GAME_WIDTH + GAME_WIDTH) % GAME_WIDTH;
     const color = star.speed > 1 ? "#ffffff" : "#8877aa";
     // Fast stars look like streaks
     const length = speed > 40 && star.speed > 1 ? 3 : 1;
+    if (imageReady(images.spaceBackground) && star.speed <= 1) {
+      continue; // over the image, only draw the fast streaks
+    }
     rect(x, star.y, length, 1, color);
   }
 }
@@ -835,15 +1195,19 @@ function drawPlanet(x, y, radius) {
 
 // The ship while it is still flying. (x, y) is its center.
 // angle tilts it (0 = flat). onFire adds a trail of flames.
-function drawFlyingShip(x, y, angle, time, onFire) {
+// size = how big to draw it (1 = normal, bigger when seen close up)
+function drawFlyingShip(x, y, angle, time, onFire, size) {
   ctx.save();
   ctx.translate(Math.round(x), Math.round(y));
   ctx.rotate(angle);
+  if (size) {
+    ctx.scale(size, size);
+  }
 
   // Engine flame (flickers)
   const flicker = Math.floor(time * 12) % 2;
-  rect(-26 - flicker * 3, -3, 6 + flicker * 3, 6, "#ffb347");
-  rect(-23, -2, 3, 4, "#fff3b0");
+  rect(-24 - flicker * 3, -3, 6 + flicker * 3, 6, "#ffb347");
+  rect(-21, -2, 3, 4, "#fff3b0");
 
   // Fire trail when the ship is falling
   if (onFire) {
@@ -854,22 +1218,29 @@ function drawFlyingShip(x, y, angle, time, onFire) {
     }
   }
 
-  // Body
-  rect(-20, -6, 36, 12, "#b8c0cc");
-  rect(-12, -10, 20, 5, "#d6dce4"); // cabin
-  rect(16, -4, 6, 8, "#d6dce4");    // nose
-  rect(22, -2, 3, 4, "#d6dce4");
-  rect(0, -9, 6, 3, "#3fa7ff");     // window
-  rect(-20, -10, 6, 4, "#8a919c");  // top fin
-  rect(-20, 6, 6, 4, "#8a919c");    // bottom fin
+  if (imageReady(images.spaceship)) {
+    // Team artwork: Spaceship.png points up, so turn it a quarter turn
+    // to point right (the way the ship flies)
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(images.spaceship, -18, -18, 36, 37);
+  } else {
+    // Placeholder body
+    rect(-20, -6, 36, 12, "#b8c0cc");
+    rect(-12, -10, 20, 5, "#d6dce4"); // cabin
+    rect(16, -4, 6, 8, "#d6dce4");    // nose
+    rect(22, -2, 3, 4, "#d6dce4");
+    rect(0, -9, 6, 3, "#3fa7ff");     // window
+    rect(-20, -10, 6, 4, "#8a919c");  // top fin
+    rect(-20, 6, 6, 4, "#8a919c");    // bottom fin
+  }
 
   ctx.restore();
 }
 
 function drawTitleBackground(time) {
   drawSpace(time, 8);
-  drawPlanet(260, 190, 90);
-  drawFlyingShip(80, 60 + Math.sin(time * 2) * 3, 0, time, false);
+  drawWorld(260, 125, 50);
+  drawFlyingShip(45, 60 + Math.sin(time * 2) * 3, 0, time, false);
 }
 
 // =============================================
@@ -877,7 +1248,17 @@ function drawTitleBackground(time) {
 // =============================================
 
 function drawSky(time) {
-  // Purple alien sky in three bands
+  if (imageReady(images.planetBackground)) {
+    // Team artwork: Planet Background.png, stretched to the full width
+    // and centered on the sky. The hills and ground cover the bottom of it.
+    const image = images.planetBackground;
+    const size = GAME_WIDTH / image.naturalWidth;
+    const height = image.naturalHeight * size;
+    ctx.drawImage(image, 0, Math.round((GROUND_TOP - height) / 2), GAME_WIDTH, height);
+    return;
+  }
+
+  // Placeholder if the image is missing: purple alien sky in three bands
   rect(0, 0, GAME_WIDTH, 50, "#1a0b33");
   rect(0, 50, GAME_WIDTH, 40, "#2e1457");
   rect(0, 90, GAME_WIDTH, GROUND_TOP - 90, "#4b2178");
@@ -913,9 +1294,16 @@ function drawMountains() {
 }
 
 function drawGround() {
-  // Alien ground with a lighter top edge
-  rect(0, GROUND_TOP, GAME_WIDTH, GAME_HEIGHT - GROUND_TOP, "#2f6b4f");
-  rect(0, GROUND_TOP, GAME_WIDTH, 3, "#5fd39a");
+  if (imageReady(images.planetGround)) {
+    // Team artwork: a strip of Planet ground.png stretched across the ground
+    ctx.drawImage(images.planetGround, 0, 150, 1024, 160,
+                  0, GROUND_TOP, GAME_WIDTH, GAME_HEIGHT - GROUND_TOP);
+    rect(0, GROUND_TOP, GAME_WIDTH, 1, "rgba(255,255,255,0.25)"); // soft top edge
+  } else {
+    // Placeholder: alien ground with a lighter top edge
+    rect(0, GROUND_TOP, GAME_WIDTH, GAME_HEIGHT - GROUND_TOP, "#2f6b4f");
+    rect(0, GROUND_TOP, GAME_WIDTH, 3, "#5fd39a");
+  }
 
   // A few rocks and glowing alien plants for decoration
   rect(200, 150, 8, 4, "#1f4a37");
@@ -928,10 +1316,54 @@ function drawGround() {
   rect(298, 124, 6, 3, "#ffd84d");
 }
 
+// The tree images have a solid black background instead of a transparent
+// one. "lighten" keeps whichever is brighter, the tree or what's behind it,
+// so the black background disappears. (If the trees get re-exported with
+// transparent backgrounds, this line can be removed.)
+function drawTrees() {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighten";
+  for (const tree of TREES) {
+    if (imageReady(tree.image)) {
+      ctx.drawImage(tree.image, tree.x, GROUND_TOP + 2 - tree.baseY, tree.width, tree.height);
+    }
+  }
+  ctx.restore();
+}
+
 function drawOutsideBackground(time) {
   drawSky(time);
   drawMountains();
+  drawTrees(); // drawn before the ground, so the ground hides the bottom of each image
   drawGround();
+}
+
+// Where Spaceship.png is drawn after the crash: center (x, y) and the size
+// of the image before it is turned on its side. Its bottom touches the ground.
+const CRASHED_SHIP = { x: ship.x + 35, y: ship.y - 29, width: 58, height: 60 };
+
+// The open hatch built into the side of the ship, with a ramp down to the ground
+function drawShipHatch(time) {
+  const x = shipDoor.x;
+  const w = shipDoor.width;
+  const doorTop = ship.y - 22;
+  const doorBottom = ship.y - 6;
+
+  rect(x - 2, doorTop - 2, w + 4, doorBottom - doorTop + 2, "#4c566a");  // hull frame
+  rect(x - 1, doorTop - 1, w + 2, doorBottom - doorTop + 1, "#9aa3ad");  // frame edge
+  rect(x, doorTop, w, doorBottom - doorTop, "#1c1f26");                  // open doorway
+  rect(x + 1, doorTop + 1, w - 2, 2, "#3b4252");                         // rounded top
+  rect(x + 2, doorBottom - 3, w - 4, 3, "#ffb347");                      // warm light inside
+
+  // Orange-and-gray striped ramp from the door down to the ground
+  for (let i = 0; i < 3; i++) {
+    const rampY = doorBottom + i * 2;
+    rect(x - 1 - i, rampY, w + 2 + i * 2, 2, i % 2 === 0 ? "#ff9a1f" : "#8a919c");
+  }
+
+  // Blinking red warning light above the hatch (life support is offline)
+  const lightOn = Math.floor(time * 2) % 2 === 0;
+  rect(x + w / 2 - 1, doorTop - 5, 3, 2, lightOn ? "#ff3b3b" : "#5a1111");
 }
 
 // The ship after it has crashed
@@ -939,7 +1371,27 @@ function drawShip(time) {
   const left = ship.x;
   const top = ship.y - ship.height;
 
-  // Body
+  if (imageReady(images.spaceship)) {
+    // Team artwork: Spaceship.png, lying level on its belly, nose to the right
+    // (the same way it was flying when it came down)
+    ctx.save();
+    ctx.translate(CRASHED_SHIP.x, CRASHED_SHIP.y);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(images.spaceship, -CRASHED_SHIP.width / 2, -CRASHED_SHIP.height / 2,
+                  CRASHED_SHIP.width, CRASHED_SHIP.height);
+    ctx.restore();
+
+    drawShipHatch(time);
+
+    // Smoke rising from the top of the ship
+    for (let i = 0; i < 3; i++) {
+      const rise = (time * 10 + i * 8) % 24;
+      rect(left + 40 + i * 2, ship.y - 52 - rise, 3, 3, "rgba(200,200,200,0.5)");
+    }
+    return;
+  }
+
+  // Placeholder body
   rect(left, top + 10, ship.width, ship.height - 10, "#b8c0cc");
   rect(left + 10, top, ship.width - 25, 12, "#d6dce4");
   // Window
@@ -967,8 +1419,58 @@ function drawShip(time) {
   }
 }
 
+// The communication device on the ground. (x, y) = bottom center.
+// beeping = true shows signal rings, a clue to help find it.
+function drawCommDevice(x, y, time, beeping) {
+  rect(x - 1, y - 12, 1, 5, "#8a919c");   // antenna
+  rect(x - 2, y - 12, 3, 1, "#d6dce4");
+  rect(x - 5, y - 7, 10, 7, "#4c566a");   // box
+  rect(x - 3, y - 5, 4, 3, "#5fd39a");    // screen
+  const blinkOn = Math.floor(time * 3) % 2 === 0;
+  rect(x + 2, y - 5, 2, 2, blinkOn ? "#ff3b3b" : "#5a1111");
+
+  if (beeping) {
+    // A ring grows out of the antenna and fades away, again and again
+    const ring = (time % 1.5) / 1.5;
+    ctx.strokeStyle = "rgba(95,211,154," + (1 - ring) + ")";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y - 12, 4 + ring * 16, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+// Debris, scorch marks and the lost device around the crashed ship.
+// timeSinceCrash makes the pieces fly out during the cutscene;
+// a big number means everything has already landed.
+function drawCrashSite(time, timeSinceCrash) {
+  const startX = ship.x + 35; // pieces fly out from the middle of the ship
+  const startY = ship.y - 15;
+
+  // Scorch mark on the ground under the ship
+  rect(ship.x - 6, ship.y + 1, ship.width + 12, 3, "rgba(20,10,10,0.5)");
+
+  // Debris: each piece flies in an arc from the ship to where it lands
+  const debrisAmount = clamp(timeSinceCrash / DEBRIS_FLY_TIME, 0, 1);
+  for (const piece of CRASH_DEBRIS) {
+    const x = lerp(startX, piece.x, debrisAmount);
+    const y = lerp(startY, piece.y, debrisAmount) - Math.sin(debrisAmount * Math.PI) * 30;
+    rect(x, y, piece.width, piece.height, piece.color);
+  }
+
+  // The communication device flies further and higher than the debris
+  if (!commDevice.collected) {
+    const deviceAmount = clamp(timeSinceCrash / DEVICE_FLY_TIME, 0, 1);
+    const x = lerp(startX, commDevice.x, deviceAmount);
+    const y = lerp(startY, commDevice.y, deviceAmount) - Math.sin(deviceAmount * Math.PI) * 70;
+    const landed = deviceAmount >= 1;
+    drawCommDevice(x, y, time, landed && state === "play");
+  }
+}
+
 function drawOutside(time) {
   drawOutsideBackground(time);
+  drawCrashSite(time, 999);
 
   drawShadow(ship.x, ship.y, ship.width);
   drawShadow(dog.x, dog.y, dog.width);
@@ -1003,25 +1505,40 @@ function drawInsideRoom(time) {
     rect(windowX + 15, 46, 1, 1, "#ffffff");
   }
 
-  // Control console with blinking lights (life support offline)
-  rect(130, 60, 80, 50, "#4c566a");
-  rect(134, 64, 72, 22, "#111418");
-  const blinkOn = Math.floor(time * 2) % 2 === 0;
-  rect(138, 68, 4, 4, blinkOn ? "#ff3b3b" : "#5a1111");
-  rect(146, 68, 4, 4, "#5a1111");
-  rect(154, 68, 4, 4, blinkOn ? "#5a1111" : "#ff3b3b");
-  // Empty oxygen gauge
-  rect(138, 78, 40, 4, "#2e3440");
-  rect(138, 78, 3, 4, "#ff3b3b");
-  // Buttons
-  rect(140, 92, 6, 4, "#ffd84d");
-  rect(152, 92, 6, 4, "#3fa7ff");
-  rect(164, 92, 6, 4, "#9df5c4");
+  // The ship monitor that opens the tutorial.
+  // Team artwork: Monitor.gif, shown 2x (64x64) standing on the floor.
+  // Its picture ends 1 pixel above the bottom of the image, so it sits at y = 48.
+  if (!showGif(gifs.monitor, monitor.x, INSIDE_FLOOR_TOP - 62, monitor.width, monitor.width)) {
+    // Placeholder console with blinking lights (if Monitor.gif is missing)
+    rect(130, 60, 80, 50, "#4c566a");
+    rect(134, 64, 72, 22, "#111418");
+    const blinkOn = Math.floor(time * 2) % 2 === 0;
+    rect(138, 68, 4, 4, blinkOn ? "#ff3b3b" : "#5a1111");
+    rect(146, 68, 4, 4, "#5a1111");
+    rect(154, 68, 4, 4, blinkOn ? "#5a1111" : "#ff3b3b");
+    rect(138, 78, 40, 4, "#2e3440"); // empty oxygen gauge
+    rect(138, 78, 3, 4, "#ff3b3b");
+    rect(140, 92, 6, 4, "#ffd84d");  // buttons
+    rect(152, 92, 6, 4, "#3fa7ff");
+    rect(164, 92, 6, 4, "#9df5c4");
+  }
 
   // Exit door on the back wall
   rect(exitDoor.x - 2, INSIDE_FLOOR_TOP - 34, exitDoor.width + 4, 34, "#6b7380");
   rect(exitDoor.x, INSIDE_FLOOR_TOP - 32, exitDoor.width, 32, "#1c1f26");
   rect(exitDoor.x + exitDoor.width / 2 - 1, INSIDE_FLOOR_TOP - 40, 3, 3, "#5fd39a"); // green "exit" light
+
+  // Storage room door (right side) with a blue "O2" sign as a clue
+  rect(storageDoor.x - 2, INSIDE_FLOOR_TOP - 34, storageDoor.width + 4, 34, "#6b7380");
+  rect(storageDoor.x, INSIDE_FLOOR_TOP - 32, storageDoor.width, 32, "#1c1f26");
+  rect(storageDoor.x - 2, 60, storageDoor.width + 4, 10, "#1c3a5a");
+  label("O2", storageDoor.x + storageDoor.width / 2, 67, "#9fd3ff");
+  if (!oxygenTank.collected && Math.floor(time * 2) % 2 === 0) {
+    // Blinking arrow pointing down at the door
+    rect(storageDoor.x + 5, 71, 6, 1, "#ffd84d");
+    rect(storageDoor.x + 6, 72, 4, 1, "#ffd84d");
+    rect(storageDoor.x + 7, 73, 2, 1, "#ffd84d");
+  }
 
   // Metal floor with grating lines
   rect(0, INSIDE_FLOOR_TOP, GAME_WIDTH, GAME_HEIGHT - INSIDE_FLOOR_TOP, "#5b6375");
@@ -1084,15 +1601,124 @@ function drawInside(time) {
 }
 
 // =============================================
+// STORAGE ROOM (where the oxygen tank is)
+// =============================================
+
+function drawStorageRoom(time) {
+  // Back wall with panel lines
+  rect(0, 0, GAME_WIDTH, INSIDE_FLOOR_TOP, "#353b48");
+  for (let x = 0; x < GAME_WIDTH; x += 40) {
+    rect(x, 0, 1, INSIDE_FLOOR_TOP, "#2e3440");
+  }
+  label("STORAGE", 160, 14, "#9aa3ad");
+
+  // Shelves with boxes
+  for (const shelfY of [45, 75]) {
+    rect(80, shelfY, 150, 3, "#6b7380");
+    rect(88, shelfY - 8, 12, 8, "#8b6b3e");
+    rect(120, shelfY - 6, 10, 6, "#4c566a");
+    rect(150, shelfY - 10, 14, 10, "#8b6b3e");
+    rect(200, shelfY - 7, 16, 7, "#4c566a");
+  }
+
+  // Dim red emergency light
+  const blinkOn = Math.floor(time * 2) % 2 === 0;
+  rect(290, 22, 6, 3, blinkOn ? "#ff3b3b" : "#5a1111");
+
+  // Door back to the main room
+  rect(storageExit.x - 2, INSIDE_FLOOR_TOP - 34, storageExit.width + 4, 34, "#6b7380");
+  rect(storageExit.x, INSIDE_FLOOR_TOP - 32, storageExit.width, 32, "#1c1f26");
+  rect(storageExit.x + storageExit.width / 2 - 1, INSIDE_FLOOR_TOP - 40, 3, 3, "#5fd39a");
+
+  // Metal floor with grating lines
+  rect(0, INSIDE_FLOOR_TOP, GAME_WIDTH, GAME_HEIGHT - INSIDE_FLOOR_TOP, "#5b6375");
+  rect(0, INSIDE_FLOOR_TOP, GAME_WIDTH, 2, "#7b8496");
+  for (let y = INSIDE_FLOOR_TOP + 12; y < GAME_HEIGHT; y += 14) {
+    rect(0, y, GAME_WIDTH, 1, "#4c5466");
+  }
+}
+
+function drawCrate(crate) {
+  const top = crate.y - crate.height;
+  rect(crate.x, top, crate.width, crate.height, "#8b6b3e");
+  rect(crate.x, top, crate.width, 2, "#a8844f");
+  rect(crate.x, top + crate.height / 2, crate.width, 1, "#5c4426");
+  rect(crate.x + 2, top + 2, 1, crate.height - 2, "#5c4426");
+  rect(crate.x + crate.width - 3, top + 2, 1, crate.height - 2, "#5c4426");
+}
+
+// Draws Oxygen tank.png (just the tank part) on any canvas.
+// Returns false if the image isn't loaded, so the caller can use a placeholder.
+function drawOxygenImage(context, x, y, width, height) {
+  if (!imageReady(images.oxygenTank)) {
+    return false;
+  }
+  const crop = OXYGEN_TANK_CROP;
+  context.drawImage(images.oxygenTank, crop.x, crop.y, crop.width, crop.height, x, y, width, height);
+  return true;
+}
+
+// Oxygen tank in the storage room. (x, y) = bottom center. Sparkles as a clue.
+function drawOxygenTank(time) {
+  const x = oxygenTank.x;
+  const y = oxygenTank.y;
+  if (drawOxygenImage(ctx, x - 4, y - 24, 8, 24)) {
+    if (Math.floor(time * 4) % 2 === 0) {
+      rect(x + 7, y - 26, 1, 3, "#ffffff");
+      rect(x + 6, y - 25, 3, 1, "#ffffff");
+    }
+    return;
+  }
+  // Placeholder tank
+  rect(x - 2, y - 18, 4, 2, "#d6dce4");  // valve
+  rect(x - 4, y - 16, 8, 16, "#3fa7ff"); // tank
+  rect(x - 3, y - 15, 2, 12, "#9fd3ff"); // shine
+  rect(x - 4, y - 10, 8, 2, "#ffffff");  // white band
+  if (Math.floor(time * 4) % 2 === 0) {
+    rect(x + 7, y - 20, 1, 3, "#ffffff");
+    rect(x + 6, y - 19, 3, 1, "#ffffff");
+  }
+}
+
+function drawStorage(time) {
+  drawStorageRoom(time);
+
+  // Everything standing on the floor, drawn from back (small y) to front
+  const things = [];
+  for (const crate of crates) {
+    drawShadow(crate.x, crate.y, crate.width);
+    things.push({ y: crate.y, draw: function () { drawCrate(crate); } });
+  }
+  if (!oxygenTank.collected) {
+    drawShadow(oxygenTank.x - 5, oxygenTank.y, 10);
+    things.push({ y: oxygenTank.y, draw: drawOxygenTank });
+  }
+  drawShadow(dog.x, dog.y, dog.width);
+  things.push({ y: dog.y, draw: drawDog });
+
+  things.sort(function (a, b) { return a.y - b.y; });
+  for (const thing of things) {
+    thing.draw(time);
+  }
+}
+
+// =============================================
 // LAIKA
 // =============================================
 
+// Laika.png is a sprite sheet with 1 column and 2 rows (2 frames).
+// Both frames face LEFT; the legs and tail change between them.
+// These are the boxes around each frame inside the image.
+const LAIKA_FRAMES = [
+  { x: 37, y: 30, width: 507, height: 346 },  // frame 1: tail down
+  { x: 37, y: 461, width: 507, height: 346 }  // frame 2: tail up, legs moved
+];
+
 function drawDog(time) {
-  // PLACEHOLDER: replace with your team's dachshund sprite later
   const top = dog.y - dog.height;
 
-  // The body is drawn facing right. When she faces left we flip it.
-  // "part" converts a position measured from her back end into a screen x.
+  // "part" converts a position measured from her back end (tail = 0,
+  // nose = dog.width) into a screen x, for whichever way she is facing.
   function part(fromBack, w) {
     if (dog.facing === 1) {
       return dog.x + fromBack;
@@ -1100,20 +1726,74 @@ function drawDog(time) {
     return dog.x + dog.width - fromBack - w;
   }
 
-  const wag = Math.floor(time * 6) % 2;
   const walking = state === "play" &&
     (keys["a"] || keys["d"] || keys["w"] || keys["s"] ||
      keys["arrowleft"] || keys["arrowright"] || keys["arrowup"] || keys["arrowdown"]);
-  const step = walking ? Math.floor(time * 8) % 2 : 0;
 
-  rect(part(0, 2), top + 3 + wag, 2, 1, "#8b4a1f");    // tail
-  rect(part(2, 16), top + 3, 16, 4, "#8b4a1f");        // long body
-  rect(part(16, 6), top, 6, 4, "#8b4a1f");             // head
-  rect(part(20, 1), top + 1, 1, 1, "#000000");         // eye
-  rect(part(16, 2), top, 2, 4, "#5c2e10");             // ear
-  rect(part(21, 1), top + 2, 1, 1, "#000000");         // nose
-  rect(part(3 + step, 2), top + 7, 2, 2, "#5c2e10");   // back legs
-  rect(part(14 - step, 2), top + 7, 2, 2, "#5c2e10");  // front legs
+  // backY = the line of her back, sideY = the middle of her side.
+  // Items she carries are drawn relative to these.
+  let backY;
+  let sideY;
+
+  if (imageReady(images.laika)) {
+    // Team artwork: switch frames quickly while walking, slowly (a tail wag) while standing
+    const frame = LAIKA_FRAMES[walking ? Math.floor(time * 6) % 2 : Math.floor(time * 1.5) % 2];
+    const x = Math.round(dog.x);
+    const y = Math.round(top);
+    ctx.save();
+    if (dog.facing === 1) {
+      // The sprite faces left, so flip it to face right
+      ctx.translate(x + dog.width, y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(images.laika, frame.x, frame.y, frame.width, frame.height, 0, 0, dog.width, dog.height);
+    } else {
+      ctx.drawImage(images.laika, frame.x, frame.y, frame.width, frame.height, x, y, dog.width, dog.height);
+    }
+    ctx.restore();
+    backY = dog.y - 11;
+    sideY = dog.y - 7;
+  } else {
+    // Placeholder dachshund (if Laika.png is missing)
+    const ptop = dog.y - 9;
+    const wag = Math.floor(time * 6) % 2;
+    const step = walking ? Math.floor(time * 8) % 2 : 0;
+    rect(part(0, 2), ptop + 3 + wag, 2, 1, "#8b4a1f");    // tail
+    rect(part(2, 16), ptop + 3, 16, 4, "#8b4a1f");        // long body
+    rect(part(16, 6), ptop, 6, 4, "#8b4a1f");             // head
+    rect(part(20, 1), ptop + 1, 1, 1, "#000000");         // eye
+    rect(part(16, 2), ptop, 2, 4, "#5c2e10");             // ear
+    rect(part(21, 1), ptop + 2, 1, 1, "#000000");         // nose
+    rect(part(3 + step, 2), ptop + 7, 2, 2, "#5c2e10");   // back legs
+    rect(part(14 - step, 2), ptop + 7, 2, 2, "#5c2e10");  // front legs
+    backY = dog.y - 6;
+    sideY = dog.y - 4;
+  }
+
+  // Oxygen tank lying flat across her back, valve pointing to her head
+  if (oxygenTank.collected) {
+    const length = 11;
+    const thickness = 4;
+    if (imageReady(images.oxygenTank)) {
+      ctx.save();
+      ctx.translate(part(4, length) + length / 2, backY - thickness / 2);
+      ctx.rotate(dog.facing === 1 ? Math.PI / 2 : -Math.PI / 2); // top of the tank -> her head
+      drawOxygenImage(ctx, -thickness / 2, -length / 2, thickness, length);
+      ctx.restore();
+    } else {
+      rect(part(4, length), backY - thickness, length, thickness, "#3fa7ff"); // placeholder tank
+      rect(part(8, 1), backY - thickness, 1, thickness, "#ffffff");
+    }
+  }
+
+  // Communication device (radio): carried in her mouth, then strapped to her side for good
+  if (commDevice.attached) {
+    rect(part(7, 3), sideY - 1, 3, 3, "#4c566a");           // small box on her side
+    rect(part(8, 1), sideY - 3, 1, 2, "#8a919c");           // tiny antenna
+    const lightOn = Math.floor(time * 2) % 2 === 0;
+    rect(part(9, 1), sideY, 1, 1, lightOn ? "#5fd39a" : "#1f5a3a"); // green = working
+  } else if (commDevice.collected) {
+    rect(part(dog.width - 1, 3), sideY - 2, 3, 3, "#4c566a"); // held in her mouth
+  }
 }
 
 // A bouncing "YOU" marker above Laika for the first seconds of gameplay
@@ -1147,18 +1827,22 @@ function drawCutscene(time) {
 
   rect(0, 0, GAME_WIDTH, GAME_HEIGHT, "#000000");
   ctx.save();
-  ctx.translate(Math.round((Math.random() - 0.5) * 2 * shake), Math.round((Math.random() - 0.5) * 2 * shake));
+  const shakeX = Math.round((Math.random() - 0.5) * 2 * shake);
+  const shakeY = Math.round((Math.random() - 0.5) * 2 * shake);
+  ctx.translate(shakeX, shakeY);
 
   if (phase === "space") {
     // Flying calmly through space
     drawSpace(time, 60);
-    drawPlanet(290, 150, 20);
+    // The planet they will crash on, far away (above the dialogue box).
+    // The planet GIF isn't on the canvas, so it gets the shake added by hand.
+    drawWorld(270 + shakeX, 60 + shakeY, 18);
     drawFlyingShip(120, 80 + Math.sin(time * 2) * 2, 0, time, false);
 
   } else if (phase === "shaking") {
     // Something goes wrong: ship wobbles, sparks fly
     drawSpace(time, 60);
-    drawPlanet(290, 150, 24);
+    drawWorld(270 + shakeX, 60 + shakeY, 22);
     drawFlyingShip(120, 80, Math.sin(time * 20) * 0.08, time, false);
     for (let i = 0; i < 4; i++) {
       rect(110 + Math.random() * 30, 72 + Math.random() * 16, 1, 1, "#ffd84d");
@@ -1168,7 +1852,8 @@ function drawCutscene(time) {
     // Falling toward the planet, which gets bigger and bigger
     const fall = Math.min(t, 8); // stop growing after 8 seconds
     drawSpace(time, 80);
-    drawPlanet(230, 210, 40 + fall * 18);
+    // (growth is capped so the planet never covers the falling ship)
+    drawWorld(230 + shakeX, 210 + shakeY, 40 + fall * 10);
     drawFlyingShip(110 + fall * 4, 60 + fall * 3, 0.45, time, true);
 
   } else if (phase === "impact") {
@@ -1176,12 +1861,16 @@ function drawCutscene(time) {
     drawOutsideBackground(time);
     if (t < IMPACT_FLY_TIME) {
       const amount = t / IMPACT_FLY_TIME;
-      const x = lerp(-30, ship.x + 35, amount);
-      const y = lerp(-10, ship.y - 15, amount);
-      drawFlyingShip(x, y, 0.5, time, true);
+      // Comes in nose-down, levels out, and lands flat where the crashed ship lies
+      const x = lerp(-30, CRASHED_SHIP.x, amount);
+      const y = lerp(-10, CRASHED_SHIP.y, amount);
+      const angle = 0.5 * (1 - amount);
+      drawFlyingShip(x, y, angle, time, true, CRASHED_SHIP.width / 36);
     } else {
       drawShadow(ship.x, ship.y, ship.width);
       drawShip(time);
+      // Debris and the communication device fly out from the ship
+      drawCrashSite(time, t - IMPACT_FLY_TIME);
       // Dust clouds spreading out from the crash
       const dust = t - IMPACT_FLY_TIME;
       for (let i = 0; i < 6; i++) {
@@ -1195,6 +1884,7 @@ function drawCutscene(time) {
   } else if (phase === "blackout") {
     // The crashed ship, slowly fading to black
     drawOutsideBackground(time);
+    drawCrashSite(time, 999);
     drawShadow(ship.x, ship.y, ship.width);
     drawShip(time);
     rect(0, 0, GAME_WIDTH, GAME_HEIGHT, "rgba(0,0,0," + Math.min(t / 1.5, 0.95) + ")");
@@ -1230,6 +1920,11 @@ function drawCutscene(time) {
 // =============================================
 
 function draw(time) {
+  // GIFs are hidden unless something calls showGif() this frame
+  for (const name in gifs) {
+    gifs[name].view = null;
+  }
+
   if (state === "title" || state === "menu") {
     drawTitleBackground(time);
   } else if (state === "cutscene") {
@@ -1238,12 +1933,14 @@ function draw(time) {
     // "play" or "tutorial": the tutorial panel sits on top of the game
     if (currentScene === "outside") {
       drawOutside(time);
-    } else {
+    } else if (currentScene === "inside") {
       drawInside(time);
-      drawMonitorPrompt(time);
+    } else {
+      drawStorage(time);
     }
+    drawInteractionPrompt(time);
+    drawAttachEffect(time);
     drawPlayerMarker(time);
-    drawTreatCounter();
 
     if (state === "tutorial") {
       drawTutorialPictures(time);
@@ -1254,6 +1951,8 @@ function draw(time) {
   if (screenFade > 0) {
     rect(0, 0, GAME_WIDTH, GAME_HEIGHT, "rgba(0,0,0," + screenFade + ")");
   }
+
+  updateGifImages();
 }
 
 // ----- Game loop -----

@@ -10,6 +10,11 @@
   <!-- The whole game world is drawn on this canvas by game.js -->
   <canvas id="game"></canvas>
 
+  <!-- Animated GIFs. They're <img> tags (not drawn on the canvas) so the
+       animations keep looping. game.js moves them into place every frame. -->
+  <img id="title-world" class="gif-overlay" src="assets/Title screen World.gif" alt="">
+  <img id="monitor-gif" class="gif-overlay" src="assets/Monitor.gif" alt="">
+
   <!-- 1. Title screen (shown first) -->
   <div id="title-screen" class="screen">
     <h1 class="game-title">Wiener Dog<br>in Space</h1>
@@ -44,11 +49,24 @@
     <p>The astronaut is unconscious inside the ship and can't move.</p>
     <p><b>Move:</b> WASD or Arrow Keys</p>
     <p><b>Enter / exit ship:</b> walk up (W) into the door</p>
-    <p><b>Use ship monitor:</b> E (stand in front of it)</p>
+    <p><b>Interact (monitor, pick up, attach):</b> E</p>
     <p><b>Hide this panel:</b> H</p>
   </div>
 
-  <!-- 5. Ship monitor tutorial (opened with E at the monitor) -->
+  <!-- 5. Objective tracker (shown during gameplay) -->
+  <div id="objectives" class="hidden">
+    <h2>Objectives</h2>
+    <p id="objective-oxygen"></p>
+    <p id="objective-device"></p>
+    <p id="objective-attach"></p>
+    <p id="objective-hint"></p>
+    <p class="treat-line">Treats: <span id="treat-count">0</span></p>
+  </div>
+
+  <!-- 6. Pop-up message, e.g. "Oxygen tank collected!" -->
+  <div id="message" class="hidden"></div>
+
+  <!-- 7. Ship monitor tutorial (opened with E at the monitor) -->
   <div id="tutorial" class="screen hidden">
     <div class="tutorial-panel">
       <h2>&#9632; Ship Monitor &#9632;</h2>
