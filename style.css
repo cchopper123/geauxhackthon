@@ -93,6 +93,17 @@ body {
   box-shadow: 2px 2px 0 #1a0b33;
 }
 
+/* Quit button on the title screen: a bit of space above it */
+.quit-button {
+  margin-top: 14px;
+}
+
+/* Continue / New Game: same width, stacked with a gap */
+.menu-button {
+  min-width: 240px;
+  margin-bottom: 14px;
+}
+
 .pixel-button.small {
   font-size: 16px;
   padding: 6px 16px;
@@ -190,8 +201,19 @@ body {
   min-width: 110px;
 }
 
+/* "Laika ran out of oxygen" screen: red instead of green */
+#died-panel .died-panel {
+  border-color: #ff3b3b;
+}
+
+#died-panel .died-panel h2,
+#died-panel .died-title {
+  color: #ff6b6b;
+}
+
 #tutorial,
 #mission-panel,
+#died-panel,
 #pause-menu {
   background: rgba(0, 0, 0, 0.6); /* dim the game behind the panel */
 }
@@ -250,6 +272,173 @@ body {
 
 .tutorial-treats b {
   color: #f2d3a0;
+}
+
+/* ----- Tabs on the survival screen (Status / About) ----- */
+.monitor-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.monitor-tab {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: bold;
+  padding: 3px 14px;
+  color: #5fd39a;
+  background: #111418;
+  border: 2px solid #3b4252;
+  cursor: pointer;
+}
+
+.monitor-tab.active {
+  color: #111418;
+  background: #5fd39a;
+  border-color: #9df5c4;
+}
+
+/* ----- Survival screen ----- */
+#survival-panel {
+  background: rgba(0, 0, 0, 0.6); /* dim the game behind the panel */
+}
+
+/* Status tab: a few big, simple bars */
+#survival-status {
+  text-align: left;
+  margin-bottom: 12px;
+}
+
+#survival-status .status-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: #e8fff2;
+}
+
+#survival-status .meter {
+  height: 16px;
+  background: #2e3440;
+  border: 2px solid #3b4252;
+}
+
+#survival-status .meter-fill {
+  height: 100%;
+}
+
+#survival-status .status-note {
+  grid-column: 2;
+  margin-top: -6px;
+  font-size: 12px;
+  color: #9df5c4;
+}
+
+#survival-status .astronaut-line {
+  margin-bottom: 12px;
+  font-size: 16px;
+  text-align: center;
+}
+
+/* About tab: all the detailed information */
+#survival-about {
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 52vh;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+#survival-about h3 {
+  margin: 8px 0 3px 0;
+  font-size: 13px;
+  color: #ffd84d;
+  border-bottom: 1px solid #3b4252;
+}
+
+#survival-about .reading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#survival-about .value {
+  color: #e8fff2;
+  text-align: right;
+}
+
+.survival-panel .good { color: #5fd39a; }
+.survival-panel .warn { color: #ffd84d; }
+.survival-panel .bad { color: #ff6b6b; }
+
+/* Labels that say where a number comes from */
+#survival-about .tag {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: bold;
+  border-radius: 2px;
+}
+
+#survival-about .tag.real {
+  color: #111418;
+  background: #3fa7ff;
+}
+
+#survival-about .tag.game {
+  color: #111418;
+  background: #c8b6ff;
+}
+
+#survival-about .note {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #8877aa;
+}
+
+/* ----- Heart rate monitor ----- */
+#heart-panel {
+  background: rgba(0, 0, 0, 0.6); /* dim the game behind the panel */
+}
+
+#heart-canvas {
+  width: 300px;
+  max-width: 100%;
+  image-rendering: pixelated; /* keep pixel art sharp */
+}
+
+.heart-reading {
+  font-size: 20px;
+  color: #e8fff2;
+}
+
+.heart-reading b {
+  color: #3be04a;
+}
+
+#heart-icon {
+  display: inline-block;
+  color: #ff6b6b;
+}
+
+/* The heart "beats" each time game.js adds this class */
+#heart-icon.beat {
+  animation: heart-beat 0.3s ease-out;
+}
+
+@keyframes heart-beat {
+  0% { transform: scale(1.5); }
+  100% { transform: scale(1); }
+}
+
+.heart-note {
+  font-size: 11px;
+  color: #8877aa;
 }
 
 /* "Tutorial Complete" screen on the monitor */

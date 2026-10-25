@@ -20,12 +20,23 @@
     <h1 class="game-title">Wiener Dog<br>in Space</h1>
     <p class="subtitle">A pixel-art rescue adventure</p>
     <button id="start-button" class="pixel-button">Start</button>
+    <button id="quit-button" class="pixel-button quit-button">Quit</button>
+  </div>
+
+  <!-- Shown after Quit if the browser doesn't let the game close its tab -->
+  <div id="quit-screen" class="screen hidden">
+    <h2 class="menu-title">Thanks for playing!</h2>
+    <p class="subtitle">You can close this tab now.</p>
+    <button id="quit-back-button" class="pixel-button">Back to Title</button>
   </div>
 
   <!-- 2. Menu (shown after clicking Start) -->
   <div id="menu-screen" class="screen hidden">
     <h2 class="menu-title">Menu</h2>
-    <button id="new-game-button" class="pixel-button">New Game</button>
+    <!-- Continue is only shown when there's a saved game (game.js) -->
+    <button id="continue-button" class="pixel-button menu-button hidden">Continue</button>
+    <button id="new-game-button" class="pixel-button menu-button">New Game</button>
+    <p id="new-game-note" class="pause-note hidden">New Game replaces your saved game once the crash scene ends.</p>
   </div>
 
   <!-- 3. Dialogue box (shown during the crash cutscene) -->
@@ -51,6 +62,7 @@
     <p><b>Explore:</b> walk off the left or right edge outside</p>
     <p><b>Enter / exit ship:</b> walk up (W) into the door</p>
     <p><b>Interact (monitor, pick up, fill oxygen, attach):</b> E</p>
+    <p><b>Bark:</b> B</p>
     <p><b>Hide this panel:</b> H &nbsp; <b>Hide objectives:</b> O</p>
   </div>
 
@@ -75,6 +87,19 @@
   <!-- 6. Pop-up message, e.g. "Oxygen tank collected!" -->
   <div id="message" class="hidden"></div>
 
+  <!-- Shown when Laika runs out of oxygen -->
+  <div id="died-panel" class="screen hidden">
+    <div class="tutorial-panel died-panel">
+      <h2>&#9632; Out of Oxygen &#9632;</h2>
+      <p class="tutorial-done-title died-title">LAIKA RAN OUT OF OXYGEN!</p>
+      <p class="tutorial-story">
+        Laika fainted... She wakes up in the ship's oxygen room with a full tank.
+        Keep an eye on the oxygen meter when you're outside!
+      </p>
+      <button id="died-close" class="pixel-button small">Continue (E / Esc)</button>
+    </div>
+  </div>
+
   <!-- Pause menu (Escape) -->
   <div id="pause-menu" class="screen hidden">
     <div class="tutorial-panel pause-panel">
@@ -83,7 +108,7 @@
         <button id="resume-button" class="pixel-button">Resume</button>
         <button id="options-button" class="pixel-button">Options</button>
         <button id="main-menu-button" class="pixel-button">Main Screen</button>
-        <p class="pause-note">Going to the main screen starts the game over.</p>
+        <p class="pause-note">The game saves automatically. Pick Continue on the menu to keep playing.</p>
       </div>
       <div id="pause-options" class="hidden">
         <h2>&#9632; Controls &#9632;</h2>
@@ -151,6 +176,38 @@
     </div>
   </div>
 
+  <!-- Survival screen (the small screen on the wall next to the ship monitor) -->
+  <div id="survival-panel" class="screen hidden">
+    <div class="tutorial-panel survival-panel">
+      <h2>&#9632; Survival Screen &#9632;</h2>
+      <div class="monitor-tabs">
+        <button id="tab-status" class="monitor-tab active">Status</button>
+        <button id="tab-about" class="monitor-tab">About</button>
+      </div>
+      <!-- game.js fills these in and keeps them updated -->
+      <div id="survival-status"></div>
+      <div id="survival-about" class="hidden"></div>
+      <button id="survival-close" class="pixel-button small">Close (E / Esc)</button>
+    </div>
+  </div>
+
+  <!-- Heart rate monitor (next to the astronaut's bed in the recovery room) -->
+  <div id="heart-panel" class="screen hidden">
+    <div class="tutorial-panel heart-panel">
+      <h2>&#9632; Heart Monitor &#9632;</h2>
+      <!-- game.js draws Heart rate monitor.png here with the live heart rate -->
+      <canvas id="heart-canvas" width="500" height="417"></canvas>
+      <p class="heart-reading">
+        <span id="heart-icon">&#9829;</span> Heart rate: <b id="heart-rate"></b>
+      </p>
+      <p id="heart-status"></p>
+      <p class="heart-note">GAME value: made up for the game, not a real measurement.</p>
+      <button id="heart-close" class="pixel-button small">Close (E / Esc)</button>
+    </div>
+  </div>
+
+  <!-- Survival screen data (real NASA values + labeled game values) -->
+  <script src="survival-data.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

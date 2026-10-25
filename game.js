@@ -73,12 +73,25 @@ const images = {
   radio: loadImage("assets/Radio.png"),
   astronaut: loadImage("assets/Astronaut frames.png"),
   interiorFurniture: loadImage("assets/Interior (1).png"),
+  heartMonitor: loadImage("assets/Heart rate monitor.png"),
+  ivBag: loadImage("assets/IV bag.webp"),
+  // Hospital pixel-art pack (16x16 / 16x32 sprites, drawn 2x in the recovery room)
+  ivStand: loadImage("assets/room_iv_stand_w.png"),
+  armchair: loadImage("assets/room_armchair.png"),
+  bedsideTable: loadImage("assets/room_bedside_table.png"),
+  flower: loadImage("assets/room_flower.png"),
+  hospitalCabinet: loadImage("assets/room_cabinet.png"),
+  pharmacyShelf: loadImage("assets/room_pharmacy_shelf.png"),
+  anatomyPoster: loadImage("assets/room_anatomy_poster.png"),
+  handSanitizer: loadImage("assets/room_hand_sanitizer.png"),
+  trashBin: loadImage("assets/room_trash_bin.png"),
   interiorWalls: loadImage("assets/Interior (2).png"),
   alienFruits: loadImage("assets/Alien fruits.png"),
   seeds: loadImage("assets/seeds.png"),
   bucket: loadImage("assets/Bucket.png"),
   dogTreat: loadImage("assets/dog treat.png"),
   astronautFace: loadImage("assets/Astronaut face icon.png"),
+  astronautCloseUp: loadImage("assets/Astronaut Close up.png"),
   bigTree: loadImage("assets/Big Tree.png"),
   lake: loadImage("assets/Lake.png")
 };
@@ -171,6 +184,371 @@ const TREES = [
   { image: loadImage("assets/Purple tree 2.png"), x: 262, width: 64, height: 64, baseY: 59 }
 ];
 
+// ----- Sounds (from the assets/Audio folder) -----
+// Browsers only allow sound after the player has clicked or pressed a key,
+// so the first sounds are the button clicks on the title screen.
+const SOUND_VOLUME = 0.6; // overall volume for all sounds (0 = silent, 1 = full)
+
+function loadSound(path, volume) {
+  const sound = new Audio(path);
+  sound.volume = volume * SOUND_VOLUME;
+  sound.preload = "auto";
+  sound.addEventListener("error", function () {
+    console.warn("Missing sound: " + path);
+  });
+  return sound;
+}
+
+const AUDIO = "assets/Audio/";
+
+// Single sounds, each tied to one exact event or job
+const sounds = {
+  astronautVoice: loadSound(AUDIO + "Astronaut talking sound.mp3", 0.55), // astronaut + narrator babble
+  runFootsteps: loadSound(AUDIO + "Laika running audio.mp3", 0.4),        // looped while running
+  celebrate: loadSound(AUDIO + "congratulations audi.ogg", 0.6),           // tutorial / mission complete
+  died: loadSound(AUDIO + "died audio.ogg", 0.6),                          // out of oxygen
+  flight: loadSound(AUDIO + "space ship flying.wav", 0.35),               // cutscene: flying through space
+  alarm: loadSound(AUDIO + "Secuirty alarm.mp3", 0.15),                   // cutscene: losing control
+  explosion: loadSound(AUDIO + "Space ship explosion.ogg", 0.8),          // cutscene: the crash
+  bark: loadSound(AUDIO + "Dachshund Dog Barking Outdoors.mp3", 0.6),     // Laika's "Bark!" dialogue lines
+  whine: loadSound(AUDIO + "Dachshund Whining Sound Effect in HD Quality.mp3", 0.6), // Laika's "Whines"
+  titleMusic: loadSound(AUDIO + "Title background music.mp3", 0.35),     // title screen + menu
+  planetMusic: loadSound(AUDIO + "Planet background music.ogg", 0.3),     // outdoors on the planet
+  heartBeep: loadSound(AUDIO + "Monitor beep.ogg", 0.2)                   // heart monitor, once per heartbeat
+};
+sounds.runFootsteps.loop = true;
+sounds.flight.loop = true;
+sounds.alarm.loop = true;
+sounds.titleMusic.loop = true;
+sounds.planetMusic.loop = true;
+
+// Groups of similar sounds: one is picked at random each time (never the
+// same one twice in a row), so repeated actions don't sound robotic.
+function loadGroup(names, volume) {
+  return names.map(function (name) { return loadSound(AUDIO + name, volume); });
+}
+function numbered(prefix, from, to, suffix) {
+  const names = [];
+  for (let i = from; i <= to; i++) names.push(prefix + i + suffix);
+  return names;
+}
+const soundGroups = {
+  interact: loadGroup(numbered("click", 1, 5, ".ogg"), 0.5),              // E works
+  footstep: loadGroup(numbered("footstep0", 0, 9, ".ogg"), 0.18),         // soft paw steps
+  computerVoice: loadGroup(numbered("switch", 1, 12, ".ogg"), 0.4),       // robotic chirps
+  monitor: loadGroup(["Monitor beep.ogg"], 0.5),                          // the ship monitor
+  bucket: loadGroup(["metalPot1.ogg", "metalPot2.ogg", "metalPot3.ogg"], 0.35), // bucket clanks
+  dig: loadGroup(["chop.ogg"], 0.5),                                      // digging / planting
+  seeds: loadGroup(["handleSmallLeather.ogg", "handleSmallLeather2.ogg"], 0.5), // seed pouch
+  attach: loadGroup(["metalClick.ogg"], 0.6),                             // radio clicks onto Laika
+  door: loadGroup(["doorOpen_1.ogg", "doorOpen_2.ogg"], 0.4)              // ship doors
+};
+const lastPicked = {}; // the last sound picked from each group
+
+// Plays a sound from the start (any earlier play of the same sound stops)
+function playSound(sound, speed) {
+  sound.currentTime = 0;
+  sound.preservesPitch = false;  // a faster speed also makes it higher
+  sound.playbackRate = speed || 1;
+  sound.play().catch(function () {
+    // the browser blocked it, or the file is missing: just stay quiet
+  });
+  return sound;
+}
+
+// Plays a random sound from a group, avoiding the one played last time
+function playFrom(groupName, speed) {
+  const group = soundGroups[groupName];
+  if (!group || group.length === 0) {
+    return null;
+  }
+  let index = Math.floor(Math.random() * group.length);
+  if (group.length > 1 && index === lastPicked[groupName]) {
+    index = (index + 1) % group.length;
+  }
+  lastPicked[groupName] = index;
+  return playSound(group[index], speed);
+}
+
+// Starts a looping sound if it should be on, pauses it if not.
+// (Only calls play() when it's actually paused, so not every frame.)
+function setLoop(sound, on, speed) {
+  if (on) {
+    if (speed) {
+      sound.preservesPitch = false;
+      sound.playbackRate = speed;
+    }
+    if (sound.paused) {
+      sound.play().catch(function () {});
+    }
+  } else if (!sound.paused) {
+    sound.pause();
+  }
+}
+
+// ----- Footsteps -----
+// Walking: a soft paw step every WALK_STEP_TIME seconds, picked from the
+// footstep group. Running: the running sound loops instead. Only one of
+// the two plays at a time, so they never overlap.
+const WALK_STEP_TIME = 0.32; // seconds between walking steps
+let nextStepAt = 0;
+
+function updateFootsteps(moving, running, now) {
+  if (!moving) {
+    stopFootsteps();
+    return;
+  }
+  if (running) {
+    setLoop(sounds.runFootsteps, true, 1.2);
+    nextStepAt = 0;
+  } else {
+    setLoop(sounds.runFootsteps, false);
+    if (now >= nextStepAt) {
+      playFrom("footstep", 1.3 + Math.random() * 0.15); // a bit higher: light little paws
+      nextStepAt = now + WALK_STEP_TIME + Math.random() * 0.04;
+    }
+  }
+}
+
+function stopFootsteps() {
+  setLoop(sounds.runFootsteps, false);
+  nextStepAt = 0; // the next walk starts with a step right away
+}
+
+// ----- Planet music -----
+// Plays while Laika is outdoors on the planet (and pauses inside the ship,
+// in menus and when the game is paused). Called every frame.
+function updatePlanetMusic() {
+  const onPlanet = (state === "play" || state === "story") && isOutdoors(currentScene);
+  setLoop(sounds.planetMusic, onPlanet);
+}
+
+// ----- Crash cutscene sounds -----
+// The engine plays while the ship flies, speeding up as it falls. The
+// alarm starts when the ship loses control. Both stop at the moment of
+// impact, when the explosion plays (once per crash).
+let explosionPlayed = false;
+
+function updateCutsceneAudio() {
+  const phase = cutscene.phase;
+  const t = cutscene.phaseTime;
+  const flyingPhase = phase === "space" || phase === "shaking" || phase === "descending";
+  const falling = phase === "impact" && t < IMPACT_FLY_TIME;
+  const landed = phase === "impact" && t >= IMPACT_FLY_TIME;
+
+  // Engine: steady in space, straining faster and faster while falling
+  let engineSpeed = 1;
+  if (phase === "descending") engineSpeed = 1 + Math.min(t, 8) * 0.03;
+  if (falling) engineSpeed = 1.3;
+  setLoop(sounds.flight, !cutscene.ending && (flyingPhase || falling), engineSpeed);
+
+  // Alarm: from "losing control" until the impact (quiet, so dialogue stays clear)
+  setLoop(sounds.alarm, !cutscene.ending && (phase === "shaking" || phase === "descending" || falling));
+
+  // Explosion: exactly once, the moment the ship hits the planet
+  if (landed && !explosionPlayed) {
+    explosionPlayed = true;
+    playSound(sounds.explosion);
+  }
+}
+
+function stopCutsceneAudio() {
+  setLoop(sounds.flight, false);
+  setLoop(sounds.alarm, false);
+}
+
+// ----- Title screen music -----
+// Plays on the title screen and the menu. Browsers block music until the
+// player clicks or presses a key, so it starts on the first one.
+function updateTitleMusic() {
+  const music = sounds.titleMusic;
+  if (state === "title" || state === "menu") {
+    if (music.paused) {
+      music.play().catch(function () {});
+    }
+  } else if (!music.paused) {
+    music.pause();
+  }
+}
+document.addEventListener("pointerdown", updateTitleMusic);
+document.addEventListener("keydown", updateTitleMusic);
+
+// Plays the button click once. (Starting it again from the beginning means a
+// fast double-click never stacks two clicks on top of each other.)
+const buttonClick = loadSound(AUDIO + "Clicking.wav", 0.5);
+function playClick() {
+  buttonClick.currentTime = 0;
+  buttonClick.play().catch(function () {
+    // the browser blocked it, or the file is missing: just stay quiet
+  });
+}
+
+// ----- Laika barks when the player presses B (gameplay only) -----
+// Six single barks from the bark recording (start and end in seconds).
+// Each press picks one at random, never the same one twice in a row.
+// There's no cooldown: every press barks. Two copies of the sound take
+// turns, so at most two barks ever sound at the same time.
+const PLAYER_BARKS = [
+  { start: 0.84, end: 1.14 },
+  { start: 9.42, end: 9.70 },
+  { start: 15.32, end: 15.60 },
+  { start: 16.20, end: 16.50 },
+  { start: 31.42, end: 31.70 },
+  { start: 32.28, end: 32.56 }
+];
+const barkPlayers = [
+  { sound: loadSound(AUDIO + "Dachshund Dog Barking Outdoors.mp3", 0.7), timer: null },
+  { sound: loadSound(AUDIO + "Dachshund Dog Barking Outdoors.mp3", 0.7), timer: null }
+];
+let nextBarkPlayer = 0;  // which copy plays the next bark
+let lastBark = -1;       // which bark played last time
+let barkBubbleTime = 0;  // seconds left to show "Bark!" above Laika
+
+function playerBark() {
+  let pick = Math.floor(Math.random() * PLAYER_BARKS.length);
+  if (pick === lastBark) {
+    pick = (pick + 1) % PLAYER_BARKS.length; // don't repeat the last bark
+  }
+  lastBark = pick;
+  const bark = PLAYER_BARKS[pick];
+  const player = barkPlayers[nextBarkPlayer];
+  nextBarkPlayer = (nextBarkPlayer + 1) % barkPlayers.length;
+
+  clearTimeout(player.timer);
+  player.sound.currentTime = bark.start;
+  player.sound.play().catch(function () {
+    // the browser blocked it, or the file is missing: just stay quiet
+  });
+  player.timer = setTimeout(function () {
+    player.sound.pause(); // stop at the end of this bark
+  }, (bark.end - bark.start) * 1000);
+  barkBubbleTime = 0.5;
+}
+
+// Every button in the game (Start, Quit, New Game, Next, the menus...)
+// clicks once when it's pressed. (Laika only barks when the player presses B.)
+document.addEventListener("click", function (event) {
+  if (event.target.closest && event.target.closest("button")) {
+    playClick();
+  }
+});
+
+// ----- Dialogue voices -----
+// While a line's text is typing out, short "syllables" play one after
+// another (never on top of each other), so characters "talk" without words.
+//  - Astronaut: random bits of her voice clip, sped up (high and cute)
+//  - Narration: the same clip slowed down, so it's deeper and slower.
+//    (Slower playback also makes each bit last longer, so the syllables
+//    and gaps are longer to match.)
+//  - Computer: short electronic chirps from the computerVoice group
+// Laika doesn't babble: her lines play one dog sound instead (see DOG_SOUNDS).
+const VOICES = {
+  Astronaut: { sound: sounds.astronautVoice, volume: 0.55, speed: 1.3, urgentSpeed: 1.6, syllable: 0.06, gap: 0.03 },
+  Narration: { sound: sounds.astronautVoice, volume: 0.45, speed: 0.72, urgentSpeed: 0.8, syllable: 0.11, gap: 0.07 },
+  Computer: { group: "computerVoice", speed: 1.0, urgentSpeed: 1.25, gap: 0.06 }
+};
+
+// Laika's dog sounds: one clean section of each recording.
+// (start / end are in seconds inside the file)
+const DOG_SOUNDS = {
+  bark: { sound: sounds.bark, start: 37.45, end: 38.3 },   // a happy double "arf arf"
+  whine: { sound: sounds.whine, start: 2.15, end: 3.8 }    // a high, sad whine
+};
+
+const voice = {
+  playing: null,   // the voice sound playing right now (or null)
+  stopAt: 0,       // when the current syllable ends (cutscene time)
+  nextAt: 0,       // when the next syllable starts (cutscene time)
+  dog: null        // the dog sound playing right now (or null)
+};
+
+// Urgent lines (with "!" or "Warning") get a higher, faster voice
+function isUrgent(text) {
+  return text.includes("!") || text.toLowerCase().includes("warning");
+}
+
+// Stops the babble (but lets a dog sound finish)
+function stopBabble() {
+  if (voice.playing) {
+    voice.playing.pause();
+    voice.playing = null;
+  }
+  voice.nextAt = 0;
+}
+
+// Stops every voice sound, including Laika's dog sound
+function stopVoice() {
+  stopBabble();
+  if (voice.dog) {
+    voice.dog.sound.pause();
+    voice.dog = null;
+  }
+}
+
+// Plays one of Laika's dog sounds (for a whole line)
+function playDogSound(name) {
+  const dogSound = DOG_SOUNDS[name];
+  if (!dogSound) {
+    return;
+  }
+  dogSound.sound.currentTime = dogSound.start;
+  dogSound.sound.play().catch(function () {});
+  voice.dog = dogSound;
+}
+
+// Called every frame during the cutscene: stops the dog sound at the end
+// of its section
+function updateDogSound() {
+  if (voice.dog && voice.dog.sound.currentTime >= voice.dog.end) {
+    voice.dog.sound.pause();
+    voice.dog = null;
+  }
+}
+
+// Called every frame while a line is typing out
+function updateVoice(line, now) {
+  const profile = VOICES[line.speaker];
+  if (!profile) {
+    return; // no babble for this speaker
+  }
+  // End the current syllable when its time is up
+  if (voice.playing && now >= voice.stopAt) {
+    voice.playing.pause();
+    voice.playing = null;
+  }
+  if (now < voice.nextAt) {
+    return;
+  }
+  const urgent = isUrgent(line.text);
+  const speed = (urgent ? profile.urgentSpeed : profile.speed) + (Math.random() - 0.5) * 0.15;
+
+  if (profile.group) {
+    // Computer: a short electronic chirp, a different one each time
+    if (voice.playing) {
+      voice.playing.pause();
+    }
+    voice.playing = playFrom(profile.group, speed);
+    voice.stopAt = now + 0.12;
+    voice.nextAt = now + (urgent ? 0.07 : 0.09) + Math.random() * profile.gap;
+    return;
+  }
+
+  // Astronaut / narrator: a random piece of the voice clip
+  const sound = profile.sound;
+  if (!(sound.duration > 0)) {
+    return; // the file hasn't loaded (or is missing)
+  }
+  const length = (urgent ? profile.syllable * 0.85 : profile.syllable) + Math.random() * 0.04; // seconds
+  sound.currentTime = Math.random() * Math.max(0, sound.duration - 0.4);
+  sound.preservesPitch = false; // the speed also changes the pitch
+  sound.playbackRate = speed;
+  sound.volume = profile.volume * SOUND_VOLUME;
+  sound.play().catch(function () {});
+  voice.playing = sound;
+  voice.stopAt = now + length;
+  voice.nextAt = voice.stopAt + (urgent ? profile.gap * 0.5 : profile.gap) + Math.random() * 0.04; // short gap
+}
+
 // ----- Animated GIFs -----
 // Browsers only keep a GIF animating when it is shown as a real <img>,
 // not when it is drawn on a canvas. So each GIF is an <img> in index.html,
@@ -253,7 +631,7 @@ const objectivesToggle = document.getElementById("objectives-toggle");
 
 // ----- Game state -----
 let state = "title";        // always start on the title screen
-let currentScene = "outside"; // during play: "outside", "inside", "storage" or "oxygenRoom"
+let currentScene = "outside"; // during play: "outside", "inside", "recovery", "storage", "oxygenRoom", "jungle" or "lake"
 let messageTimer = 0;       // seconds left to show the pop-up message
 let attachEffectTime = 0;   // seconds left of the "device attached" sparkles
 let waitForUpRelease = false; // true right after using a door (see updatePlay)
@@ -278,6 +656,8 @@ let treats = 0;             // Treats are the game's money (rewards for missions
 //   "inside"     inside the ship, Laika next to the astronaut
 const CUTSCENE_LINES = [
   { speaker: "Astronaut", text: "Laika, are you okay?", phase: "space" },
+  // dogSound = one of Laika's dog sounds from DOG_SOUNDS, played with the line
+  { speaker: "Laika", text: "Bark!", phase: "space", dogSound: "bark" },
   { speaker: "Computer", text: "Warning! The ship is losing control!", phase: "shaking" },
   { speaker: "Computer", text: "Emergency landing sequence activated.", phase: "descending" },
   { speaker: "Computer", text: "Warning. Life-support systems damaged.", phase: "descending" },
@@ -288,7 +668,7 @@ const CUTSCENE_LINES = [
   { speaker: "Narration", text: "The astronaut loses consciousness after the crash.", phase: "blackout" },
   { speaker: "Narration", text: "Laika is okay, but her human needs help.", phase: "laika" },
   { speaker: "Narration", text: "... she seems unconscious?", phase: "inside" },
-  { speaker: "Laika", text: "Whines", phase: "inside" }
+  { speaker: "Laika", text: "Whines", phase: "inside", dogSound: "whine" }
 ];
 
 // Name colors in the dialogue box
@@ -432,12 +812,12 @@ const cutscene = {
 // Each action and the key it uses. The arrow keys always move too.
 const DEFAULT_CONTROLS = {
   up: "w", down: "s", left: "a", right: "d",
-  interact: "e", run: "shift", drop: "q",
+  interact: "e", run: "shift", drop: "q", bark: "b",
   objectives: "o", help: "h"
 };
 const CONTROL_NAMES = {
   up: "Move up", down: "Move down", left: "Move left", right: "Move right",
-  interact: "Interact", run: "Run (hold)", drop: "Drop bucket",
+  interact: "Interact", run: "Run (hold)", drop: "Drop bucket", bark: "Bark",
   objectives: "Hide objectives", help: "Hide controls panel"
 };
 let controls = Object.assign({}, DEFAULT_CONTROLS);
@@ -521,6 +901,10 @@ window.addEventListener("keydown", function (event) {
   if (state === "play" && key === controls.drop && !event.repeat) {
     dropBucket();
   }
+  // Bark: once per key press (holding the key down doesn't repeat it)
+  if (state === "play" && key === controls.bark && !event.repeat) {
+    playerBark();
+  }
 
   // The interact key uses whatever Laika is next to. It (or Escape) also
   // closes the monitor and mission messages.
@@ -533,12 +917,27 @@ window.addEventListener("keydown", function (event) {
     } else if (state === "play" && key === controls.interact) {
       const interaction = getInteraction();
       if (interaction) {
+        jingleJustPlayed = false;
         interaction.action();
+        // A blip when the interaction worked (not for hint-only messages,
+        // and not when the tutorial jingle just started playing)
+        // Each interaction can name its own sound group (e.g. "bucket");
+        // the rest use the "interact" clicks
+        if (!interaction.hint && !jingleJustPlayed) {
+          playFrom(interaction.sound || "interact");
+        }
+        jingleJustPlayed = false;
       }
     } else if (state === "tutorial" && (key === controls.interact || key === "escape")) {
       closeTutorial();
     } else if (state === "story" && (key === controls.interact || key === "escape")) {
       closeMissionPanel();
+    } else if (state === "died" && (key === controls.interact || key === "escape")) {
+      closeDiedPanel();
+    } else if (state === "survival" && (key === controls.interact || key === "escape")) {
+      closeSurvivalScreen();
+    } else if (state === "heart" && (key === controls.interact || key === "escape")) {
+      closeHeartMonitor();
     }
   }
 });
@@ -595,7 +994,7 @@ function advanceMoveTutorial() {
   showMoveTutorialStep();
   if (moveTutorialDone()) {
     controlsPanel.classList.remove("hidden");
-    showMessage("You're ready! Walk to the ship monitor and press " + keyName(controls.interact) + ".");
+    showMessage("You're ready! Walk to the ship monitor and press " + keyName(controls.interact) + ".", 7);
   }
 }
 
@@ -620,6 +1019,8 @@ const pauseMenu = document.getElementById("pause-menu");
 function pauseGame() {
   stateBeforePause = state;
   state = "paused"; // update() stops, so everything freezes
+  stopVoice();
+  stopCutsceneAudio(); // the engine and alarm start again when the game resumes
   pauseMenu.classList.remove("hidden");
   showPausePage("main");
 }
@@ -684,7 +1085,7 @@ function updateControlsText() {
     "<p><b>Move:</b> " + k("up") + k("left") + k("down") + k("right") + " or Arrow Keys &nbsp; <b>Run:</b> hold " + k("run") + "</p>" +
     "<p><b>Explore:</b> walk off the left or right edge outside</p>" +
     "<p><b>Enter / exit ship:</b> walk up into the door</p>" +
-    "<p><b>Interact:</b> " + k("interact") + " &nbsp; <b>Drop bucket:</b> " + k("drop") + "</p>" +
+    "<p><b>Interact:</b> " + k("interact") + " &nbsp; <b>Drop bucket:</b> " + k("drop") + " &nbsp; <b>Bark:</b> " + k("bark") + "</p>" +
     "<p><b>Hide this panel:</b> " + k("help") + " &nbsp; <b>Hide objectives:</b> " + k("objectives") + "</p>" +
     "<p><b>Pause menu:</b> Esc</p>";
 }
@@ -699,20 +1100,48 @@ document.getElementById("reset-controls").addEventListener("click", function () 
   buildControlsTable();
 });
 document.getElementById("main-menu-button").addEventListener("click", function () {
-  // Going back to the title screen starts fresh, like opening the game again
-  window.location.reload();
+  // Going back to the title screen reloads the page, like opening the game
+  // again. (The game is saved first, so Continue picks up from here.)
+  // (Wait a moment so the button's click sound can play first.)
+  setTimeout(function () { window.location.reload(); }, 150);
 });
 updateControlsText();
 
 // ----- Buttons -----
+const continueButton = document.getElementById("continue-button");
+
 startButton.addEventListener("click", function () {
   state = "menu";
   titleScreen.classList.add("hidden");
   menuScreen.classList.remove("hidden");
-  newGameButton.focus();
+  // Continue only shows up when there's a saved game
+  const hasSave = readSave() !== null;
+  continueButton.classList.toggle("hidden", !hasSave);
+  document.getElementById("new-game-note").classList.toggle("hidden", !hasSave);
+  (hasSave ? continueButton : newGameButton).focus();
 });
 
+continueButton.addEventListener("click", continueGame);
 newGameButton.addEventListener("click", startNewGame);
+
+// Quit: try to close the game's tab. Browsers only allow that for tabs a
+// script opened, so if the tab is still open, show a "Thanks for playing!"
+// screen instead (with a button back to the title).
+document.getElementById("quit-button").addEventListener("click", function () {
+  state = "quit";
+  updateTitleMusic(); // the music stops
+  titleScreen.classList.add("hidden");
+  document.getElementById("quit-screen").classList.remove("hidden");
+  setTimeout(function () { window.close(); }, 150); // let the click sound play first
+});
+
+document.getElementById("quit-back-button").addEventListener("click", function () {
+  state = "title";
+  document.getElementById("quit-screen").classList.add("hidden");
+  titleScreen.classList.remove("hidden");
+  updateTitleMusic(); // the music starts again
+  startButton.focus();
+});
 
 dialogueNext.addEventListener("click", function () {
   advanceDialogue();
@@ -721,6 +1150,7 @@ dialogueNext.addEventListener("click", function () {
 
 tutorialClose.addEventListener("click", closeTutorial);
 document.getElementById("mission-close").addEventListener("click", closeMissionPanel);
+document.getElementById("died-close").addEventListener("click", closeDiedPanel);
 
 // Hides the objectives list (the small "Objectives" title stays so it can be reopened)
 function toggleObjectives() {
@@ -778,12 +1208,46 @@ const monitor = {
   x: 116,
   width: 64
 };
+const MONITOR_TOP = 26; // the monitor hangs on the wall from here (bottom at y = 90)
 
-// The bed inside the ship where the astronaut lies unconscious
+// Door on the main room's back wall (right side) that leads to the recovery room
+const recoveryDoor = {
+  x: 232,
+  width: 16
+};
+
+// Door on the recovery room's back wall that leads back to the main room
+const recoveryExit = {
+  x: 30,
+  width: 16
+};
+
+// The heart rate monitor on a stand next to the astronaut's bed
+// (Heart rate monitor.png, the part with the monitor in it)
+const heartMonitor = {
+  x: 272,
+  width: 36
+};
+const HEART_MONITOR_CROP = { x: 0, y: 34, width: 500, height: 417 };
+
+// The IV stand at the head of her bed (room_iv_stand_w.png from the hospital
+// pack, 16x32, drawn 2x). Its IV bag is on the right hook; the feeding bag
+// (IV bag.webp) hangs from the left hook.
+// (x, y) = top left of the drawn stand. Its base is level with the head of the bed.
+const ivStand = { x: 180, y: 80, width: 32, height: 64 };
+const IV_BAG_CROP = { x: 100, y: 35, width: 140, height: 270 }; // the bag in IV bag.webp
+const FULL_SPRITE = { x: 0, y: 0, width: 16, height: 16 };      // a whole 16x16 sprite
+const TALL_SPRITE = { x: 0, y: 0, width: 16, height: 32 };      // a whole 16x32 sprite
+// Where her nose is in "Astronaut Close up.png" (for the feeding tube)
+const ASTRONAUT_NOSE = { x: 213, y: 275 };
+
+// The bed in the recovery room where the astronaut lies unconscious
+// (3/4 the size of the bed image, with room to walk around both sides)
 const cot = {
-  x: 196,
+  x: 210,
   y: 162, // bottom of the bed
-  width: 64
+  width: 48,
+  height: 39
 };
 
 // Door on the main room's back wall (right side) that leads to the storage room
@@ -820,8 +1284,7 @@ const oxygenFiller = {
 // Laika's oxygen goes from 100 (full) to 0 (empty). It runs out slowly,
 // faster outside the ship. Refill it at the filling station.
 let oxygen = 100;
-const OXYGEN_DRAIN_INSIDE = 0.5;   // per second inside the ship (about 3.3 minutes from full)
-const OXYGEN_DRAIN_OUTSIDE = 1.0;  // per second outside (100 seconds from full)
+const OXYGEN_DRAIN_OUTSIDE = 1.0;  // per second outside (100 seconds from full); none inside the ship
 let lowOxygenWarned = false;       // so the "oxygen low" message only shows once
 let oxygenUnlocked = false;        // the meter appears (and oxygen starts running out) once Laika goes outside
 
@@ -876,9 +1339,12 @@ const bucket = {
   scene: "storage", x: 66, y: 162, // where it is when it's on the ground
   collected: false, // Laika is carrying it
   filled: false,    // it has water in it right now
+  water: 0,         // how many waterings are left (a full bucket has BUCKET_USES)
   found: false,     // Laika has picked it up at least once
   filledOnce: false // Laika has filled it at the lake at least once
 };
+const BUCKET_USES = 3; // a full bucket can water plants this many times
+
 // Places in the ship where the empty bucket can reappear after Laika
 // gives the water to the astronaut
 const BUCKET_SPAWNS = [
@@ -937,6 +1403,7 @@ const bigTree = { x: 30, size: 128, trunkX: 92, inspected: false };
 let wentInsideAfterTutorial = false;
 let missionUnlocked = false;
 
+let treatLeft = false;       // Laika left a treat next to the astronaut's head
 let waterGiven = false;      // Laika gave the astronaut water
 let foodGiven = false;       // Laika gave the astronaut food
 let mainMissionDone = false; // both water and food were given
@@ -947,12 +1414,14 @@ const solids = {
   outside: [
     { x: ship.x, y: ship.y - 8, width: ship.width, height: 10 }
   ],
-  inside: [
-    { x: cot.x, y: cot.y - 38, width: cot.width, height: 38 }, // the bed (seen from above, so most of it is solid)
-    { x: cot.x + cot.width + 2, y: cot.y - 10, width: 12, height: 10 }, // heart monitor stand
-    // The ship monitor: Laika stops far enough in front of it that her
-    // helmet doesn't go behind the GIF
-    { x: monitor.x, y: INSIDE_FLOOR_TOP, width: monitor.width, height: 20 }
+  // (The ship monitor hangs on the wall above Laika's head, so it isn't
+  // solid: she can walk right past it.)
+  inside: [],
+  recovery: [
+    { x: cot.x, y: cot.y - 28, width: cot.width, height: 28 }, // the bed (seen from above, so most of it is solid)
+    // heart monitor stand: only its pole is solid, so Laika still fits
+    // between it and the bed
+    { x: heartMonitor.x + 14, y: cot.y - 7, width: 7, height: 5 }
   ],
   storage: [],
   oxygenRoom: [
@@ -996,11 +1465,17 @@ function startNewGame() {
   cutscene.ending = false;
   startPhase("space");
   screenFade = 0;
+  updateTitleMusic(); // the title music stops when the game begins
+  explosionPlayed = false; // this crash gets its one explosion
+  // Start the spaceship flying sound right away, during the New Game click
+  // (browsers always allow sound to start inside a click)
+  sounds.flight.currentTime = 0;
+  setLoop(sounds.flight, true, 1);
 }
 
 function startGameplay() {
   state = "play";
-  currentScene = "inside";
+  currentScene = "recovery";
   dialogueBox.classList.add("hidden");
   objectivesPanel.classList.remove("hidden");
   updateObjectives();
@@ -1012,7 +1487,7 @@ function startGameplay() {
   controlsPanel.classList.add("hidden");
   showMoveTutorialStep();
 
-  // Laika starts inside the ship, next to the unconscious astronaut
+  // Laika starts in the recovery room, next to the unconscious astronaut
   // (the same spot where the cutscene ends)
   dog.x = cot.x - 30;
   dog.y = cot.y + 8;
@@ -1020,6 +1495,132 @@ function startGameplay() {
 
   playTime = 0;
   screenFade = 1; // fade in from black
+  saveGame(); // this new game replaces any older saved game
+}
+
+// =============================================
+// SAVING AND LOADING
+// The game saves itself every few seconds during gameplay (and when the
+// page is closed) in the browser's localStorage, on this computer only.
+// The menu's Continue button loads it.
+// =============================================
+
+const SAVE_KEY = "wienerDogSave";
+const SAVE_EVERY = 3; // seconds between autosaves
+let saveTimer = 0;
+
+// Everything that changes while playing, as one plain object
+function makeSaveData() {
+  return {
+    version: 1,
+    scene: currentScene,
+    dog: { x: dog.x, y: dog.y, facing: dog.facing },
+    treats: treats,
+    oxygen: oxygen,
+    oxygenUnlocked: oxygenUnlocked,
+    moveTutorialIndex: moveTutorialIndex,
+    tutorialCompleteSeen: tutorialCompleteSeen,
+    oxygenTank: { collected: oxygenTank.collected, filled: oxygenTank.filled },
+    commDevice: { collected: commDevice.collected, attached: commDevice.attached },
+    bucket: Object.assign({}, bucket),
+    fruitCount: fruitCount,
+    fruitsCollected: alienFruits.map(function (fruit) { return fruit.collected; }),
+    seedBag: seedBag.slice(),
+    seedsFound: seedsFound,
+    seedPodsCollected: seedPods.map(function (pod) { return pod.collected; }),
+    farmPlots: farmPlots.map(function (plot) { return Object.assign({}, plot); }),
+    farmWatered: farmWatered,
+    farmHarvested: farmHarvested,
+    bigTreeInspected: bigTree.inspected,
+    wentInsideAfterTutorial: wentInsideAfterTutorial,
+    missionUnlocked: missionUnlocked,
+    treatLeft: treatLeft,
+    waterGiven: waterGiven,
+    foodGiven: foodGiven,
+    mainMissionDone: mainMissionDone
+  };
+}
+
+function saveGame() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(makeSaveData()));
+  } catch (error) {
+    // saving isn't allowed in this browser: the game still works, it just won't save
+  }
+}
+
+// Returns the saved game, or null if there isn't one (or it can't be read)
+function readSave() {
+  try {
+    const data = JSON.parse(localStorage.getItem(SAVE_KEY));
+    return data && data.version === 1 ? data : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Saves every few seconds while playing (not during scenes or menus)
+function updateAutosave(deltaTime) {
+  saveTimer += deltaTime;
+  if (saveTimer >= SAVE_EVERY) {
+    saveTimer = 0;
+    saveGame();
+  }
+}
+
+// Closing or reloading the page while playing also saves
+window.addEventListener("beforeunload", function () {
+  if (state === "play" || state === "paused" || state === "tutorial" ||
+      state === "survival" || state === "heart" || state === "story" || state === "died") {
+    saveGame();
+  }
+});
+
+// Continue: put everything back the way it was saved, then start playing
+function continueGame() {
+  const data = readSave();
+  if (!data) {
+    return;
+  }
+  currentScene = data.scene;
+  dog.x = data.dog.x;
+  dog.y = data.dog.y;
+  dog.facing = data.dog.facing;
+  treats = data.treats;
+  oxygen = data.oxygen;
+  oxygenUnlocked = data.oxygenUnlocked;
+  moveTutorialIndex = data.moveTutorialIndex;
+  tutorialCompleteSeen = data.tutorialCompleteSeen;
+  Object.assign(oxygenTank, data.oxygenTank);
+  Object.assign(commDevice, data.commDevice);
+  Object.assign(bucket, data.bucket);
+  fruitCount = data.fruitCount;
+  alienFruits.forEach(function (fruit, i) { fruit.collected = data.fruitsCollected[i]; });
+  seedBag = data.seedBag;
+  seedsFound = data.seedsFound;
+  seedPods.forEach(function (pod, i) { pod.collected = data.seedPodsCollected[i]; });
+  farmPlots.forEach(function (plot, i) { Object.assign(plot, data.farmPlots[i]); });
+  farmWatered = data.farmWatered;
+  farmHarvested = data.farmHarvested;
+  bigTree.inspected = data.bigTreeInspected;
+  wentInsideAfterTutorial = data.wentInsideAfterTutorial;
+  missionUnlocked = data.missionUnlocked;
+  treatLeft = data.treatLeft;
+  waterGiven = data.waterGiven;
+  foodGiven = data.foodGiven;
+  mainMissionDone = data.mainMissionDone;
+
+  state = "play";
+  menuScreen.classList.add("hidden");
+  updateTitleMusic(); // the title music stops
+  objectivesPanel.classList.remove("hidden");
+  updateObjectives();
+  moveTutorialTime = 0;
+  showMoveTutorialStep(); // the controls walkthrough, if it wasn't finished
+  controlsPanel.classList.toggle("hidden", !moveTutorialDone());
+  playTime = 0;
+  screenFade = 1; // fade in from black
+  showMessage("Welcome back, Laika!");
 }
 
 // =============================================
@@ -1030,6 +1631,11 @@ function startPhase(phase) {
   cutscene.phase = phase;
   cutscene.phaseTime = 0;
 
+  // In the bedside scene, the treat appears next to her head (and stays there)
+  if (phase === "bedsideTreat") {
+    treatLeft = true;
+  }
+
   // Put Laika where she needs to be for the phases that show her
   if (phase === "inside") {
     dog.x = cot.x - 30;
@@ -1038,9 +1644,41 @@ function startPhase(phase) {
   }
 }
 
+// The dialogue system plays one list of lines at a time: the crash
+// cutscene, or a short scene like Laika visiting the astronaut's bed
+let activeLines = CUTSCENE_LINES;
+let sceneOnEnd = null; // what happens when a short scene finishes
+
+// Plays a short dialogue scene during gameplay, then returns to playing
+function startScene(lines, onEnd) {
+  activeLines = lines;
+  sceneOnEnd = onEnd;
+  state = "cutscene";
+  cutscene.time = INTRO_TIME; // no intro: the first line shows straight away
+  cutscene.lineIndex = -1;
+  cutscene.ending = false;
+  startPhase(lines[0].phase);
+}
+
+function finishScene() {
+  dialogueBox.classList.add("hidden");
+  stopVoice();
+  activeLines = CUTSCENE_LINES;
+  state = "play";
+  const onEnd = sceneOnEnd;
+  sceneOnEnd = null;
+  if (onEnd) {
+    onEnd();
+  }
+}
+
 function showLine(index) {
-  const line = CUTSCENE_LINES[index];
+  const line = activeLines[index];
+  stopVoice(); // a new line starts its own voice
   cutscene.lineIndex = index;
+  if (line.dogSound) {
+    playDogSound(line.dogSound); // Laika barks or whines with this line
+  }
   cutscene.lineTime = 0;
   cutscene.typed = 0;
 
@@ -1058,7 +1696,7 @@ function showLine(index) {
     dialoguePortrait.classList.add("hidden");
   }
 
-  const isLastLine = index === CUTSCENE_LINES.length - 1;
+  const isLastLine = index === activeLines.length - 1;
   dialogueNext.innerHTML = isLastLine ? "Continue &#9654;" : "Next &#9654;";
   dialogueBox.classList.remove("hidden");
 
@@ -1073,12 +1711,13 @@ function advanceDialogue() {
     return;
   }
 
-  const line = CUTSCENE_LINES[cutscene.lineIndex];
+  const line = activeLines[cutscene.lineIndex];
 
   // If the text is still typing, the first press shows the whole line
   if (cutscene.typed < line.text.length) {
     cutscene.typed = line.text.length;
     dialogueText.textContent = line.text;
+    stopBabble(); // the whole line is showing, so the babble stops
     return;
   }
 
@@ -1087,12 +1726,15 @@ function advanceDialogue() {
     return;
   }
 
-  if (cutscene.lineIndex < CUTSCENE_LINES.length - 1) {
+  if (cutscene.lineIndex < activeLines.length - 1) {
     showLine(cutscene.lineIndex + 1);
+  } else if (activeLines !== CUTSCENE_LINES) {
+    finishScene(); // a short scene ends straight back in gameplay
   } else {
     // Last line finished: fade out, then gameplay starts
     cutscene.ending = true;
     dialogueBox.classList.add("hidden");
+    stopVoice();
   }
 }
 
@@ -1100,8 +1742,14 @@ function updateCutscene(deltaTime) {
   cutscene.time += deltaTime;
   cutscene.phaseTime += deltaTime;
 
+  // Engine, alarm and crash sounds follow the animation; dog sounds stop
+  // at the end of their section
+  updateCutsceneAudio();
+  updateDogSound();
+
   // Fading out at the end
   if (cutscene.ending) {
+    stopCutsceneAudio();
     screenFade = Math.min(1, screenFade + deltaTime);
     if (screenFade >= 1) {
       startGameplay();
@@ -1119,10 +1767,13 @@ function updateCutscene(deltaTime) {
 
   // Typing effect: reveal more letters every frame
   cutscene.lineTime += deltaTime;
-  const line = CUTSCENE_LINES[cutscene.lineIndex];
+  const line = activeLines[cutscene.lineIndex];
   if (cutscene.typed < line.text.length) {
     cutscene.typed = Math.min(line.text.length, cutscene.typed + TYPE_SPEED * deltaTime);
     dialogueText.textContent = line.text.slice(0, Math.floor(cutscene.typed));
+    updateVoice(line, cutscene.time); // babble while the text is appearing
+  } else {
+    stopBabble(); // the line has finished typing (a dog sound may still finish)
   }
 }
 
@@ -1166,7 +1817,11 @@ function clamp(value, min, max) {
 
 function updatePlay(deltaTime) {
   playTime += deltaTime;
+  updateAutosave(deltaTime);
+  barkBubbleTime = Math.max(0, barkBubbleTime - deltaTime);
   screenFade = Math.max(0, screenFade - deltaTime); // finish the fade-in
+  const startX = dog.x; // to tell later whether she actually moved
+  const startY = dog.y;
 
   let moveX = 0;
   let moveY = 0;
@@ -1267,6 +1922,16 @@ function updatePlay(deltaTime) {
       currentScene = "storage";
       dog.x = storageExit.x + storageExit.width / 2 - dog.width / 2;
       dog.y = INSIDE_FLOOR_TOP + 16;
+    } else if (currentScene === "inside" && dogLinedUpWith(recoveryDoor) && dog.y <= minY + 1) {
+      // Go into the recovery room. Start just in front of its door.
+      currentScene = "recovery";
+      dog.x = recoveryExit.x + recoveryExit.width / 2 - dog.width / 2;
+      dog.y = INSIDE_FLOOR_TOP + 16;
+    } else if (currentScene === "recovery" && dogLinedUpWith(recoveryExit) && dog.y <= minY + 1) {
+      // Back to the main room. Start just in front of the recovery room door.
+      currentScene = "inside";
+      dog.x = recoveryDoor.x + recoveryDoor.width / 2 - dog.width / 2;
+      dog.y = INSIDE_FLOOR_TOP + 16;
     } else if (currentScene === "storage" && dogLinedUpWith(storageExit) && dog.y <= minY + 1) {
       // Back to the main room. Start just in front of the storage door.
       currentScene = "inside";
@@ -1275,6 +1940,7 @@ function updatePlay(deltaTime) {
     }
 
     if (currentScene !== sceneBefore) {
+      playFrom("door"); // went through a door
       waitForUpRelease = true;
     }
   }
@@ -1285,6 +1951,12 @@ function updatePlay(deltaTime) {
   updateFarm(deltaTime);
   updateMissionUnlock();
   updateMoveTutorial(deltaTime);
+
+  // Paw steps while she's actually moving (walking into a wall is silent)
+  const moved = dog.x !== startX || dog.y !== startY;
+  if (state === "play") {
+    updateFootsteps(moved, dog.running, playTime);
+  }
 }
 
 // After the tutorial: going back inside the ship, then coming back out,
@@ -1321,17 +1993,15 @@ function updateFarm(deltaTime) {
   }
 }
 
-// Oxygen slowly runs out (faster outside). If it reaches 0, Laika faints
-// and wakes up in the oxygen room with a full meter.
+// Oxygen slowly runs out while Laika is outside (the ship has air, so it
+// doesn't go down indoors). If it reaches 0, Laika faints and wakes up in
+// the oxygen room with a full meter.
 function updateOxygen(deltaTime) {
-  if (isOutdoors(currentScene)) {
-    oxygenUnlocked = true; // the first trip outside turns on the oxygen meter
+  if (!isOutdoors(currentScene)) {
+    return; // inside the ship: no oxygen is used
   }
-  if (!oxygenUnlocked) {
-    return; // no oxygen meter yet, so nothing runs out
-  }
-  const drain = isOutdoors(currentScene) ? OXYGEN_DRAIN_OUTSIDE : OXYGEN_DRAIN_INSIDE;
-  oxygen = Math.max(0, oxygen - drain * deltaTime);
+  oxygenUnlocked = true; // the first trip outside turns on the oxygen meter
+  oxygen = Math.max(0, oxygen - OXYGEN_DRAIN_OUTSIDE * deltaTime);
 
   if (oxygen <= 25 && !lowOxygenWarned) {
     lowOxygenWarned = true;
@@ -1342,13 +2012,28 @@ function updateOxygen(deltaTime) {
   }
 
   if (oxygen <= 0) {
+    // Laika faints: play the "died" sound and show the "ran out of oxygen"
+    // screen. She's moved to the oxygen room behind it, with a full meter.
+    playSound(sounds.died);
+    stopFootsteps();
     currentScene = "oxygenRoom";
     dog.x = oxygenFiller.x + oxygenFiller.width / 2 - dog.width / 2;
     dog.y = INSIDE_FLOOR_TOP + 34;
     oxygen = 100;
-    screenFade = 1; // fade back in
-    showMessage("Laika ran out of oxygen! She woke up in the oxygen room.");
+    screenFade = 1;
+    state = "died"; // the game pauses until the player closes the screen
+    messageBox.classList.add("hidden"); // hide "Oxygen low!" behind the screen
+    messageTimer = 0;
+    document.getElementById("died-panel").classList.remove("hidden");
   }
+}
+
+// Closing the "ran out of oxygen" screen: back to playing, in the oxygen room
+function closeDiedPanel() {
+  state = "play";
+  document.getElementById("died-panel").classList.add("hidden");
+  document.getElementById("died-close").blur();
+  showMessage("Laika woke up in the oxygen room.");
 }
 
 // =============================================
@@ -1375,13 +2060,18 @@ function dogAtShip() {
 // Returns { text, x, y, action } or null if there is nothing to do.
 // Each item checks "collected"/"attached" so it can only happen once.
 function getInteraction() {
+  // (The survival screen is checked first: standing at the right end of the
+  // monitor already counts as being at the survival screen)
+  if (dogNearSurvivalScreen()) {
+    return { text: "Press E: survival screen", x: survivalScreen.x + survivalScreen.width / 2, y: survivalScreen.y - 4, sound: "monitor", action: openSurvivalScreen };
+  }
   if (dogNearMonitor()) {
-    return { text: "Press E: monitor", x: monitor.x + monitor.width / 2, y: 45, action: openTutorial };
+    return { text: "Press E: monitor", x: monitor.x + monitor.width / 2, y: MONITOR_TOP - 4, sound: "monitor", action: openTutorial };
   }
   if (dogNearFiller()) {
     const x = oxygenFiller.x + oxygenFiller.width / 2;
     if (!oxygenTank.collected) {
-      return { text: "Press E: oxygen filler", x: x, y: 50, action: function () {
+      return { text: "Press E: oxygen filler", x: x, y: 50, hint: true, action: function () {
         showMessage("Laika needs an oxygen tank to fill! It's in the storage room.");
       } };
     }
@@ -1399,7 +2089,10 @@ function getInteraction() {
     return { text: "Press E: pick up device", x: commDevice.x, y: commDevice.y - 18, action: collectDevice };
   }
   if (commDevice.collected && !commDevice.attached && dogAtShip()) {
-    return { text: "Press E: attach device", x: dog.x + dog.width / 2, y: dog.y - dog.height - 8, action: attachDevice };
+    return { text: "Press E: attach device", x: dog.x + dog.width / 2, y: dog.y - dog.height - 8, sound: "attach", action: attachDevice };
+  }
+  if (dogNearHeartMonitor()) {
+    return { text: "Press E: heart monitor", x: heartMonitor.x + heartMonitor.width / 2, y: cot.y - 62, sound: "none", action: openHeartMonitor };
   }
 
   // ----- Mission: Keep the Astronaut Alive -----
@@ -1410,7 +2103,7 @@ function getInteraction() {
   }
   if (!bucket.collected && dogNear(bucket)) {
     const text = bucket.found ? "Press E: pick up bucket" : "Press E: take bucket";
-    return { text: text, x: bucket.x, y: bucket.y - 14, action: collectBucket };
+    return { text: text, x: bucket.x, y: bucket.y - 14, sound: "bucket", action: collectBucket };
   }
   if (!missionUnlocked) {
     return null;
@@ -1419,13 +2112,14 @@ function getInteraction() {
     const x = dog.x + dog.width / 2;
     const y = dog.y - dog.height - 8;
     if (!bucket.collected) {
-      return { text: "Press E: lake", x: x, y: y, action: function () {
+      return { text: "Press E: lake", x: x, y: y, hint: true, action: function () {
         showMessage(bucket.found ? "Laika needs to carry the bucket to get water."
                                  : "Laika needs a bucket to carry water. Check the ship's storage room!");
       } };
     }
-    if (!bucket.filled) {
-      return { text: "Press E: fill bucket", x: x, y: y, action: fillBucket };
+    if (bucket.water < BUCKET_USES) {
+      // Fill an empty bucket, or top up one that's partly used
+      return { text: bucket.filled ? "Press E: top up bucket" : "Press E: fill bucket", x: x, y: y, sound: "bucket", action: fillBucket };
     }
   }
   for (const fruit of alienFruits) {
@@ -1435,7 +2129,7 @@ function getInteraction() {
   }
   for (const pod of seedPods) {
     if (!pod.collected && dogNear(pod)) {
-      return { text: "Press E: take seeds", x: pod.x, y: pod.y - 12, action: function () { collectSeeds(pod); } };
+      return { text: "Press E: take seeds", x: pod.x, y: pod.y - 12, sound: "seeds", action: function () { collectSeeds(pod); } };
     }
   }
   if (dogNearBigTree()) {
@@ -1450,17 +2144,16 @@ function getInteraction() {
     const canGiveWater = bucket.collected && bucket.filled && !waterGiven;
     const canGiveFood = fruitCount >= FRUIT_NEEDED && !foodGiven;
     if (canGiveWater || canGiveFood) {
-      return { text: "Press E: give supplies", x: cot.x + cot.width / 2, y: cot.y - 62, action: giveSupplies };
+      return { text: "Press E: give supplies", x: cot.x + cot.width / 2, y: cot.y - 62, sound: "none", action: giveSupplies };
     }
-    return { text: "Press E: check on her", x: cot.x + cot.width / 2, y: cot.y - 62, action: function () {
-      showMessage("She's still unconscious. " + stillNeeded());
-    } };
+    return { text: "Press E: check on her", x: cot.x + cot.width / 2, y: cot.y - 62, hint: true, action: checkOnAstronaut };
   }
   return null;
 }
 
 // What the astronaut still needs, as a sentence
 function stillNeeded() {
+  if (waterGiven && foodGiven) return "She has the water and food she needs for now.";
   if (!waterGiven && !foodGiven) return "Laika needs to bring her water and food.";
   if (!waterGiven) return "She still needs water.";
   return "She still needs food (" + Math.min(fruitCount, FRUIT_NEEDED) + "/" + FRUIT_NEEDED + " fruit).";
@@ -1488,6 +2181,7 @@ function dropBucket() {
   bucket.x = dog.x + dog.width / 2;
   bucket.y = dog.y;
   showMessage(bucket.filled ? "Laika put down the bucket of water." : "Laika put down the empty bucket.");
+  playFrom("bucket");
 }
 
 // True when Laika is on the shore of the lake
@@ -1500,7 +2194,7 @@ function dogNearLake() {
 
 // True when Laika is right next to the astronaut's bed
 function dogNearBed() {
-  return currentScene === "inside" &&
+  return currentScene === "recovery" &&
          dog.x + dog.width > cot.x - 8 && dog.x < cot.x + cot.width + 8 &&
          dog.y > cot.y - 44 && dog.y < cot.y + 12;
 }
@@ -1524,6 +2218,7 @@ function collectBucket() {
 
 function fillBucket() {
   bucket.filled = true;
+  bucket.water = BUCKET_USES;
   if (!bucket.filledOnce) {
     bucket.filledOnce = true;
     treats += 1;
@@ -1561,7 +2256,7 @@ function farmInteraction(plot) {
   const x = plot.x;
   const y = plot.y - 22;
   if (plot.stage === "empty") {
-    return { text: "Press E: dig", x: x, y: y, action: function () {
+    return { text: "Press E: dig", x: x, y: y, sound: "dig", action: function () {
       plot.stage = "dug";
       plot.timer = 0;
       showMessage("Laika dug a planting spot!");
@@ -1569,7 +2264,7 @@ function farmInteraction(plot) {
     } };
   }
   if (plot.stage === "dug") {
-    return { text: "Press E: plant seeds", x: x, y: y, action: function () {
+    return { text: "Press E: plant seeds", x: x, y: y, hint: seedBag.length === 0, sound: "dig", action: function () {
       if (seedBag.length === 0) {
         showMessage("Laika needs seeds to plant. Look around the planet!");
         return;
@@ -1585,17 +2280,22 @@ function farmInteraction(plot) {
   if ((plot.stage === "seed" || plot.stage === "sprout") && !plot.watered) {
     // Plants need water to grow
     if (bucket.collected && bucket.filled) {
-      return { text: "Press E: water plant", x: x, y: y, action: function () {
+      return { text: "Press E: water plant (" + bucket.water + " left)", x: x, y: y, sound: "bucket", action: function () {
         plot.watered = true;
         plot.timer = 0;
-        bucket.filled = false; // watering uses up the bucket of water
+        bucket.water -= 1; // each watering uses one of the bucket's 3 uses
+        bucket.filled = bucket.water > 0;
         farmWatered = true;
-        showMessage("Laika watered the plant! The bucket is empty - refill it at the lake.");
+        if (bucket.filled) {
+          showMessage("Laika watered the plant! Water left in the bucket: " + bucket.water);
+        } else {
+          showMessage("Laika watered the plant! The bucket is empty - refill it at the lake.");
+        }
         updateObjectives();
       } };
     }
-    return { text: "Press E: check plant", x: x, y: y, action: function () {
-      showMessage("It needs water to grow! Bring a full bucket from the lake.");
+    return { text: "Press E: check plant", x: x, y: y, hint: true, action: function () {
+      showMessage("It needs water to grow! Bring a bucket of water from the lake.");
     } };
   }
   if (plot.stage === "mature" && plot.fruitReady) {
@@ -1613,7 +2313,7 @@ function farmInteraction(plot) {
       updateObjectives();
     } };
   }
-  return { text: "Press E: check plant", x: x, y: y, action: function () {
+  return { text: "Press E: check plant", x: x, y: y, hint: true, action: function () {
     showMessage(plot.stage === "mature" ? "New fruit is still growing..." : "It's still growing. Come back later!");
   } };
 }
@@ -1629,6 +2329,7 @@ function giveSupplies() {
     const spot = BUCKET_SPAWNS[Math.floor(Math.random() * BUCKET_SPAWNS.length)];
     bucket.collected = false;
     bucket.filled = false;
+    bucket.water = 0;
     bucket.scene = spot.scene;
     bucket.x = spot.x;
     bucket.y = spot.y;
@@ -1640,17 +2341,40 @@ function giveSupplies() {
   }
   updateObjectives();
 
-  if (waterGiven && foodGiven) {
-    mainMissionDone = true;
-    treats += 2;
-    updateObjectives();
-    state = "story"; // pause the game while the message is shown
-    document.getElementById("mission-panel").classList.remove("hidden");
-  } else {
-    const bucketNote = gave.includes("water") ? " The empty bucket went back somewhere in the ship." : "";
-    showMessage("Laika gave her " + gave.join(" and ") + "! " + stillNeeded() + bucketNote);
-  }
+  // A short bedside scene: Laika barks, gives the supplies, and leaves a
+  // treat next to her human's head. Then the game carries on.
+  sceneGave = gave;
+  const what = gave.length === 2 ? "water and alien fruit" : (gave[0] === "water" ? "some water" : "some alien fruit");
+  startScene([
+    { speaker: "Laika", text: "Bark! Bark!", phase: "bedside", dogSound: "bark" },
+    { speaker: "Narration", text: "Laika gives her human " + what + ".", phase: "bedside" },
+    { speaker: "Narration", text: "Then she leaves a treat next to her head. Get well soon!", phase: "bedsideTreat" }
+  ], function () {
+    sceneGave = [];
+    if (waterGiven && foodGiven) {
+      mainMissionDone = true;
+      treats += 2;
+      playJingle(); // mission complete!
+      updateObjectives();
+      state = "story"; // pause the game while the message is shown
+      document.getElementById("mission-panel").classList.remove("hidden");
+    } else {
+      const bucketNote = gave.includes("water") ? " The empty bucket went back somewhere in the ship." : "";
+      showMessage(stillNeeded() + bucketNote, 4);
+    }
+  });
 }
+
+// Checking on the astronaut without the supplies: a short bedside scene
+function checkOnAstronaut() {
+  sceneGave = [];
+  startScene([
+    { speaker: "Laika", text: "Bark?", phase: "bedside", dogSound: "bark" },
+    { speaker: "Narration", text: "She's still unconscious. " + stillNeeded(), phase: "bedside" }
+  ], null);
+}
+
+let sceneGave = []; // what Laika is giving in the bedside scene ("water", "food")
 
 function closeMissionPanel() {
   state = "play";
@@ -1681,6 +2405,15 @@ function fillOxygenTank() {
   updateObjectives();
 }
 
+// The congratulations jingle plays exactly once for the tutorial: the
+// first time Laika goes back to the monitor and sees "Tutorial Complete"
+// (see openTutorial). It also plays when the supplies mission is done.
+let jingleJustPlayed = false; // so the interact sound doesn't play over it
+function playJingle() {
+  jingleJustPlayed = true;
+  playSound(sounds.celebrate);
+}
+
 function refillOxygen() {
   oxygen = 100;
   showMessage("Oxygen refilled!");
@@ -1705,11 +2438,11 @@ function attachDevice() {
   updateObjectives();
 }
 
-// Shows a pop-up message for a few seconds
-function showMessage(text) {
+// Shows a pop-up message for a few seconds (2.5 unless another time is given)
+function showMessage(text, seconds) {
   messageBox.textContent = text;
   messageBox.classList.remove("hidden");
-  messageTimer = 2.5;
+  messageTimer = seconds || 2.5;
 }
 
 function updateMessage(deltaTime) {
@@ -1785,7 +2518,7 @@ function updateObjectives() {
     } else if (!enoughFruit) {
       hint = "Hint: alien fruit grows in the jungle (<- JUNGLE), by the lake and near the ship.";
     } else if (!mainMissionDone) {
-      hint = "Hint: bring water and fruit to the astronaut's bed. " + stillNeeded();
+      hint = "Hint: bring water and fruit to the astronaut's bed in the recovery room (red cross door). " + stillNeeded();
     } else if (!farmHarvested) {
       hint = "Side objective: find seeds and grow food at the farm next to the ship.";
     } else {
@@ -1821,11 +2554,13 @@ function openTutorial() {
   state = "tutorial"; // updatePlay stops running, so Laika can't move
   tutorialTime = 0;
   tutorialPanel.classList.remove("hidden");
-
   // Once the tutorial tasks are done, the monitor shows "Tutorial Complete"
   // and the next tasks instead of the picture instructions
   const done = tutorialDone();
   if (done) {
+    if (!tutorialCompleteSeen) {
+      playJingle(); // the first time "Tutorial Complete" is shown
+    }
     tutorialCompleteSeen = true; // the "!" above the monitor goes away
   }
   document.getElementById("tutorial-steps").classList.toggle("hidden", done);
@@ -1846,6 +2581,302 @@ function closeTutorial() {
   state = "play";
   tutorialPanel.classList.add("hidden");
   tutorialClose.blur();
+}
+
+// =============================================
+// SURVIVAL SCREEN (the small screen on the wall next to the ship monitor)
+// "Status" tab: a few simple bars. "About" tab: all the details, with real
+// reference numbers from survival-data.js (labeled NASA) and made-up planet
+// values (labeled GAME).
+// =============================================
+
+// Where the survival screen hangs on the wall (between the monitor and the window)
+const survivalScreen = { x: 186, y: 40, width: 32, height: 28 };
+
+let survivalTab = "status"; // which tab is showing
+let survivalRefreshTimer = 0;
+
+// ----- Heart rate monitor (recovery room) -----
+// The astronaut's heart rate is a GAME value (made up, not a real
+// measurement). It's slow while she still needs water and food, and
+// steady at about 72 BPM (like the picture) once she has both.
+let heartRate = 58;      // beats per minute right now
+let heartbeatTimer = 0;  // seconds until the next beat
+let heartBeatFlash = 0;  // > 0 just after a beat (the light on the stand blinks)
+
+function heartRateTarget() {
+  if (waterGiven && foodGiven) return 72;
+  if (waterGiven || foodGiven) return 65;
+  return 58;
+}
+
+// Every beat: pick a heart rate close to the target, and beep if Laika is
+// in the recovery room (or looking at the heart monitor)
+function updateHeartbeat(deltaTime) {
+  heartBeatFlash = Math.max(0, heartBeatFlash - deltaTime);
+  heartbeatTimer -= deltaTime;
+  if (heartbeatTimer > 0) {
+    return;
+  }
+  heartRate = heartRateTarget() + Math.floor(Math.random() * 5) - 2;
+  heartbeatTimer = 60 / heartRate;
+  heartBeatFlash = 0.15;
+  if (currentScene === "recovery" && (state === "play" || state === "heart")) {
+    playSound(sounds.heartBeep);
+  }
+  if (state === "heart") {
+    drawHeartMonitorScreen();
+  }
+}
+
+// True when Laika is standing next to the heart monitor
+function dogNearHeartMonitor() {
+  const middle = dog.x + dog.width / 2;
+  return currentScene === "recovery" &&
+         middle > heartMonitor.x + 6 && middle < heartMonitor.x + heartMonitor.width + 8 &&
+         dog.y > cot.y - 44 && dog.y < cot.y + 16;
+}
+
+function openHeartMonitor() {
+  state = "heart"; // the game pauses while it's open
+  document.getElementById("heart-panel").classList.remove("hidden");
+  drawHeartMonitorScreen();
+}
+
+function closeHeartMonitor() {
+  state = "play";
+  document.getElementById("heart-panel").classList.add("hidden");
+  document.getElementById("heart-close").blur();
+}
+document.getElementById("heart-close").addEventListener("click", closeHeartMonitor);
+
+// Tiny 3x5 pixel digits, so the number matches the picture's pixel style.
+// Each digit is 5 rows of 3 pixels ("1" = pixel on).
+const PIXEL_DIGITS = {
+  0: ["111", "101", "101", "101", "111"], 1: ["010", "110", "010", "010", "111"],
+  2: ["111", "001", "111", "100", "111"], 3: ["111", "001", "111", "001", "111"],
+  4: ["101", "101", "111", "001", "001"], 5: ["111", "100", "111", "001", "111"],
+  6: ["111", "100", "111", "101", "111"], 7: ["111", "001", "010", "010", "010"],
+  8: ["111", "101", "111", "101", "111"], 9: ["111", "101", "111", "001", "111"]
+};
+function drawPixelNumber(context, text, x, y, size, color) {
+  context.fillStyle = color;
+  for (let i = 0; i < text.length; i++) {
+    const rows = PIXEL_DIGITS[text[i]];
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 3; col++) {
+        if (rows[row][col] === "1") {
+          context.fillRect(x + i * size * 4 + col * size, y + row * size, size, size);
+        }
+      }
+    }
+  }
+}
+
+// The big heart monitor in the panel: the picture, with its "72" replaced
+// by the live heart rate. (Called on every beat while the panel is open.)
+function drawHeartMonitorScreen() {
+  const canvas = document.getElementById("heart-canvas");
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  const crop = HEART_MONITOR_CROP;
+  if (drawPart(context, images.heartMonitor, crop, 0, 0, canvas.width, canvas.height)) {
+    context.fillStyle = "#000306";
+    context.fillRect(118, 120 - crop.y, 30, 22); // cover the "72" in the picture
+    drawPixelNumber(context, String(heartRate), 119, 122 - crop.y, 3, "#3be04a");
+  } else {
+    // Placeholder if Heart rate monitor.png is missing
+    context.fillStyle = "#0b2a2a";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    drawPixelNumber(context, String(heartRate), 60, 60, 12, "#3be04a");
+  }
+  document.getElementById("heart-rate").textContent = heartRate + " BPM";
+  // Restart the heart's "beat" animation (style.css)
+  const heart = document.getElementById("heart-icon");
+  heart.classList.remove("beat");
+  void heart.offsetWidth; // makes the browser notice the class was removed
+  heart.classList.add("beat");
+  document.getElementById("heart-status").textContent = waterGiven && foodGiven
+    ? "Steady. She has water and food, but she's still unconscious."
+    : "Slow. She needs " + (waterGiven ? "food" : foodGiven ? "water" : "water and food") + ".";
+}
+
+// True when Laika is standing under the survival screen
+function dogNearSurvivalScreen() {
+  const middle = dog.x + dog.width / 2;
+  return currentScene === "inside" &&
+         middle > survivalScreen.x + 2 && middle < survivalScreen.x + survivalScreen.width + 6 &&
+         dog.y <= INSIDE_FLOOR_TOP + 26;
+}
+
+function openSurvivalScreen() {
+  state = "survival"; // the game pauses while it's open
+  document.getElementById("survival-panel").classList.remove("hidden");
+  showSurvivalTab("status");
+}
+
+function closeSurvivalScreen() {
+  state = "play";
+  document.getElementById("survival-panel").classList.add("hidden");
+  document.getElementById("survival-close").blur();
+}
+
+function showSurvivalTab(tab) {
+  survivalTab = tab;
+  document.getElementById("survival-status").classList.toggle("hidden", tab !== "status");
+  document.getElementById("survival-about").classList.toggle("hidden", tab !== "about");
+  document.getElementById("tab-status").classList.toggle("active", tab === "status");
+  document.getElementById("tab-about").classList.toggle("active", tab === "about");
+  refreshSurvivalScreen();
+}
+document.getElementById("tab-status").addEventListener("click", function () { showSurvivalTab("status"); });
+document.getElementById("tab-about").addEventListener("click", function () { showSurvivalTab("about"); });
+document.getElementById("survival-close").addEventListener("click", closeSurvivalScreen);
+
+function refreshSurvivalScreen() {
+  if (survivalTab === "status") {
+    renderSurvivalStatus();
+  } else {
+    renderSurvivalMonitor();
+  }
+}
+
+// The Status tab: the astronaut, then one simple bar each for water,
+// food, oxygen and life support
+function renderSurvivalStatus() {
+  const systems = lifeSupportSystems();
+  const online = systems.filter(function (s) { return s.online; }).length;
+  const bar = function (name, amount, total, color, note) {
+    const percent = Math.round(100 * Math.max(0, Math.min(1, amount / total)));
+    return "<div class=\"status-row\"><span>" + name + "</span>" +
+           "<div class=\"meter\"><div class=\"meter-fill\" style=\"width:" + percent + "%;background:" + color + "\"></div></div>" +
+           "<span class=\"status-note\">" + note + "</span></div>";
+  };
+
+  let astronaut = "Needs water and food";
+  let mood = "bad";
+  if (waterGiven && foodGiven) { astronaut = "Stable"; mood = "good"; }
+  else if (waterGiven) { astronaut = "Needs food"; mood = "warn"; }
+  else if (foodGiven) { astronaut = "Needs water"; mood = "warn"; }
+
+  let html = "<p class=\"astronaut-line\">Astronaut: <span class=\"" + mood + "\">Unconscious &ndash; " + astronaut + "</span></p>";
+  html += bar("Water", waterGiven ? 1 : bucket.water, waterGiven ? 1 : BUCKET_USES, "#3fc8ff",
+              waterGiven ? "Given to the astronaut" : "Bucket: " + bucket.water + " / " + BUCKET_USES);
+  html += bar("Food", foodGiven ? 1 : fruitCount, foodGiven ? 1 : FRUIT_NEEDED, "#b46cff",
+              foodGiven ? "Given to the astronaut" : "Fruit: " + fruitCount + " / " + FRUIT_NEEDED);
+  html += bar("Oxygen", oxygen, 100, oxygen > 25 ? "#5fd39a" : "#ff3b3b",
+              "Laika: " + Math.round(oxygen) + "%");
+  html += bar("Life support", online, systems.length, "#ffd84d",
+              online + " / " + systems.length + " systems working");
+  document.getElementById("survival-status").innerHTML = html;
+}
+
+// A small text bar like [######----]
+function textBar(amount, total) {
+  const filled = Math.round(10 * Math.max(0, Math.min(1, amount / total)));
+  return "[" + "#".repeat(filled) + "-".repeat(10 - filled) + "]";
+}
+
+// The life-support systems Laika can restore. Each one turns on when
+// Laika completes the matching task, so the readings follow the gameplay.
+function lifeSupportSystems() {
+  return [
+    { name: "Oxygen supply (filling station)", online: oxygenTank.filled },
+    { name: "Communications (radio)", online: commDevice.attached },
+    { name: "Water for the astronaut", online: waterGiven },
+    { name: "Food for the astronaut", online: foodGiven }
+  ];
+}
+
+function renderSurvivalMonitor() {
+  const box = document.getElementById("survival-about");
+  const esc = function (text) { return String(text).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); };
+  const row = function (label, value, mood) {
+    return "<div class=\"reading\"><span>" + label + "</span><span class=\"value " + (mood || "") + "\">" + esc(value) + "</span></div>";
+  };
+  const hasRealData = typeof SURVIVAL_REAL_DATA !== "undefined";
+  const real = function (key, label) {
+    if (!hasRealData || !SURVIVAL_REAL_DATA[key]) {
+      return row("<span class=\"tag real\">NASA</span>" + label, "no verified data loaded", "warn");
+    }
+    const d = SURVIVAL_REAL_DATA[key];
+    return row("<span class=\"tag real\">NASA</span>" + label, d.value + " " + d.unit);
+  };
+  const game = function (key, label) {
+    const value = typeof SURVIVAL_GAME_DATA !== "undefined" ? SURVIVAL_GAME_DATA[key] : "-";
+    return row("<span class=\"tag game\">GAME</span>" + label, value);
+  };
+
+  // Astronaut
+  const systems = lifeSupportSystems();
+  const online = systems.filter(function (s) { return s.online; }).length;
+  let astronaut = "UNCONSCIOUS - needs water and food";
+  let astronautMood = "bad";
+  if (waterGiven && foodGiven) { astronaut = "UNCONSCIOUS - stable"; astronautMood = "good"; }
+  else if (waterGiven) { astronaut = "UNCONSCIOUS - needs food"; astronautMood = "warn"; }
+  else if (foodGiven) { astronaut = "UNCONSCIOUS - needs water"; astronautMood = "warn"; }
+
+  // Farm
+  const growing = farmPlots.filter(function (p) { return p.stage === "seed" || p.stage === "sprout"; }).length;
+  const ready = farmPlots.filter(function (p) { return p.stage === "mature" && p.fruitReady; }).length;
+  const thirsty = farmPlots.filter(function (p) { return (p.stage === "seed" || p.stage === "sprout") && !p.watered; }).length;
+
+  let html = "";
+  html += "<h3>ASTRONAUT</h3>";
+  html += row("Status", astronaut, astronautMood);
+  html += row("Life support systems", online + " / " + systems.length + " restored " + textBar(online, systems.length), online === systems.length ? "good" : "warn");
+  for (const s of systems) {
+    html += row("&nbsp;&nbsp;" + s.name, s.online ? "ONLINE" : "OFFLINE", s.online ? "good" : "bad");
+  }
+
+  html += "<h3>WATER SUPPLY</h3>";
+  html += row("Bucket", !bucket.found ? "not found yet" : (bucket.collected ? "carried" : "on the ground") + ", water " + bucket.water + " / " + BUCKET_USES + " " + textBar(bucket.water, BUCKET_USES), bucket.water > 0 ? "good" : "warn");
+  html += row("Water given to astronaut", waterGiven ? "YES" : "NO", waterGiven ? "good" : "bad");
+  html += real("waterPerDay", "A real astronaut drinks about");
+
+  html += "<h3>FOOD</h3>";
+  html += row("Alien fruit carried", fruitCount + (foodGiven ? "" : " / " + FRUIT_NEEDED + " needed"), fruitCount >= FRUIT_NEEDED || foodGiven ? "good" : "warn");
+  html += row("Farm", growing + " growing, " + ready + " ready" + (thirsty ? ", " + thirsty + " need water" : ""), thirsty ? "warn" : "good");
+  html += row("Seeds carried", seedBag.length);
+  html += row("Food given to astronaut", foodGiven ? "YES" : "NO", foodGiven ? "good" : "bad");
+  html += real("foodPerDay", "A real astronaut eats about");
+  html += real("foodEnergyPerDay", "That food gives");
+
+  html += "<h3>OXYGEN &amp; AIR</h3>";
+  html += row("Laika's oxygen tank", oxygenUnlocked ? Math.round(oxygen) + "% " + textBar(oxygen, 100) : (oxygenTank.filled ? "full (not used inside)" : "no tank yet"), oxygen > 25 ? "good" : "bad");
+  html += row("Filling station", oxygenTank.filled ? "ONLINE" : "WAITING FOR A TANK", oxygenTank.filled ? "good" : "warn");
+  html += real("oxygenPerDay", "A real astronaut breathes in");
+  html += real("carbonDioxidePerDay", "...and breathes out CO2");
+
+  html += "<h3>ENVIRONMENT</h3>";
+  html += game("shipCabin", "Ship cabin");
+  html += real("cabinPressure", "Real cabin pressure");
+  html += real("cabinOxygenPressure", "Real cabin oxygen");
+  html += real("cabinTemperature", "Real cabin temperature");
+  html += real("cabinHumidity", "Real cabin humidity");
+  html += game("planetAir", "Planet air");
+  html += game("planetTemperature", "Planet temperature");
+  html += game("planetGravity", "Planet gravity");
+  html += game("planetWater", "Planet water");
+  html += real("marsPressure", "For comparison, Mars pressure");
+  html += real("marsTemperature", "Mars temperature");
+  html += real("marsCarbonDioxide", "Mars air");
+  html += real("marsOxygen", "Mars oxygen");
+  html += real("marsGravity", "Mars gravity");
+
+  html += "<p class=\"note\"><span class=\"tag real\">NASA</span>real reference values (sources in the README and survival-data.js). " +
+          "<span class=\"tag game\">GAME</span>made up for this game's fictional planet. All other readings are game values.</p>";
+  box.innerHTML = html;
+}
+
+// While the monitor is open on the Survival tab, refresh it twice a second
+function updateSurvivalScreen(deltaTime) {
+  survivalRefreshTimer -= deltaTime;
+  if (survivalRefreshTimer <= 0) {
+    survivalRefreshTimer = 0.5;
+    refreshSurvivalScreen();
+  }
 }
 
 // ----- Picture instructions -----
@@ -2118,6 +3149,7 @@ function drawAttachEffect(time) {
 // on the title screen, the menu, during the cutscene, or in the tutorial.
 function update(deltaTime) {
   updateMessage(deltaTime);
+  updatePlanetMusic();
 
   if (state === "cutscene") {
     updateCutscene(deltaTime);
@@ -2125,6 +3157,15 @@ function update(deltaTime) {
     updatePlay(deltaTime);
   } else if (state === "tutorial") {
     tutorialTime += deltaTime;
+  } else if (state === "survival") {
+    updateSurvivalScreen(deltaTime); // keep the readings fresh while it's open
+  }
+  updateHeartbeat(deltaTime);
+
+  // No footsteps unless Laika is being controlled (cutscenes, menus,
+  // the monitor, messages and the pause menu are all silent)
+  if (state !== "play") {
+    stopFootsteps();
   }
 }
 
@@ -2556,11 +3597,11 @@ function drawSign(x, y, text) {
 }
 
 // Alien fruit. type = which fruit from "Alien fruits.png" (0 to 15).
-// (x, y) = bottom center.
-function drawAlienFruit(x, y, time, type) {
+// (x, y) = bottom center. noGlow = true for fruit that was already given.
+function drawAlienFruit(x, y, time, type, noGlow) {
   x = Math.round(x);
   y = Math.round(y);
-  const glow = Math.sin(time * 3 + x) > 0;
+  const glow = !noGlow && Math.sin(time * 3 + x) > 0;
   if (glow) {
     rect(x - 5, y - 8, 11, 9, "rgba(229,156,255,0.25)"); // soft glow
   }
@@ -2606,12 +3647,19 @@ function drawSeedPod(x, y, time, type) {
 function drawBucket(x, y, filled, time) {
   x = Math.round(x);
   y = Math.round(y);
-  // Team artwork: Bucket.png, with water drawn in its opening when full
+  // Team artwork: Bucket.png, with water drawn in its opening.
+  // The water gets lower as the bucket's 3 uses are used up.
   if (drawPart(ctx, images.bucket, BUCKET_CROP, x - 1, y - 1, 9, 8)) {
     if (filled) {
-      rect(x + 1, y, 6, 2, "#3fc8ff");
+      if (bucket.water >= 3) {
+        rect(x + 1, y, 6, 2, "#3fc8ff");     // full
+      } else if (bucket.water === 2) {
+        rect(x + 1, y + 1, 6, 1, "#3fc8ff"); // a bit lower
+      } else {
+        rect(x + 2, y + 1, 4, 1, "#3fc8ff"); // just a little left
+      }
       if (Math.floor(time * 3) % 2 === 0) {
-        rect(x + 2, y, 1, 1, "#d6f4ff");    // sparkle on the water
+        rect(x + 2, y + (bucket.water >= 3 ? 0 : 1), 1, 1, "#d6f4ff"); // sparkle on the water
       }
     }
     return;
@@ -2819,6 +3867,30 @@ function drawWallAndFloor(wall, floor) {
   return true;
 }
 
+// The little survival screen on the wall: four bars (water, food, oxygen,
+// life support) and a light that blinks red while the astronaut needs something
+function drawSurvivalWallScreen(time) {
+  const s = survivalScreen;
+  rect(s.x - 2, s.y - 2, s.width + 4, s.height + 4, "#4c566a");   // frame
+  rect(s.x, s.y, s.width, s.height, "#111418");                     // screen
+  const systems = lifeSupportSystems().filter(function (x) { return x.online; }).length;
+  const levels = [
+    { amount: waterGiven ? 1 : bucket.water / BUCKET_USES, color: "#3fc8ff" },
+    { amount: foodGiven ? 1 : fruitCount / FRUIT_NEEDED, color: "#b46cff" },
+    { amount: oxygen / 100, color: "#5fd39a" },
+    { amount: systems / 4, color: "#ffd84d" }
+  ];
+  levels.forEach(function (level, i) {
+    const barHeight = Math.round(16 * Math.max(0.06, Math.min(1, level.amount)));
+    rect(s.x + 3 + i * 7, s.y + 4, 5, 16, "#2e3440");
+    rect(s.x + 3 + i * 7, s.y + 20 - barHeight, 5, barHeight, level.color);
+  });
+  const needsHelp = !(waterGiven && foodGiven);
+  const lightOn = Math.floor(time * 2) % 2 === 0;
+  rect(s.x + 3, s.y + 23, 3, 2, needsHelp ? (lightOn ? "#ff3b3b" : "#5a1111") : "#5fd39a");
+  rect(s.x + 9, s.y + 23, 20, 2, "#2e3440");
+}
+
 // Placeholder wall and floor (if "Interior (2).png" is missing)
 function drawPlaceholderWallAndFloor(wallColor) {
   rect(0, 0, GAME_WIDTH, INSIDE_FLOOR_TOP, wallColor);
@@ -2849,7 +3921,8 @@ function drawInsideRoom(time) {
   }
 
   // Windows (metal shutters), shown at half size
-  for (const windowX of [62, 222]) {
+  // (The right side of the wall has the recovery room door instead)
+  for (const windowX of [62]) {
     if (!drawPart(ctx, images.interiorFurniture, INTERIOR.window, windowX, 30, 38, 25)) {
       rect(windowX, 35, 24, 18, "#6b7380");
       rect(windowX + 2, 37, 20, 14, "#1a0b33");
@@ -2860,35 +3933,44 @@ function drawInsideRoom(time) {
   drawPart(ctx, images.interiorFurniture, INTERIOR.plant, 94, INSIDE_FLOOR_TOP - 33, 21, 35);
 
   // The ship monitor that opens the tutorial.
-  // Team artwork: Monitor.gif, shown 2x (64x64) standing on the floor.
-  // Its picture ends 1 pixel above the bottom of the image, so it sits at y = 48.
-  if (!showGif(gifs.monitor, monitor.x, INSIDE_FLOOR_TOP - 62, monitor.width, monitor.width)) {
-    // Placeholder console with blinking lights (if Monitor.gif is missing)
-    rect(130, 60, 80, 50, "#4c566a");
-    rect(134, 64, 72, 22, "#111418");
+  // Team artwork: Monitor.gif, shown 2x (64x64) on a shelf on the wall.
+  // It's mounted high (bottom at y = 92), so Laika's helmet never goes
+  // behind it, and it doesn't need to be solid.
+  rect(monitor.x - 2, MONITOR_TOP + 62, monitor.width + 4, 3, "#6b7380"); // wall shelf
+  rect(monitor.x + 6, MONITOR_TOP + 65, 3, 4, "#4c566a");                  // shelf brackets
+  rect(monitor.x + monitor.width - 9, MONITOR_TOP + 65, 3, 4, "#4c566a");
+  if (!showGif(gifs.monitor, monitor.x, MONITOR_TOP, monitor.width, monitor.width)) {
+    // Placeholder screen with blinking lights (if Monitor.gif is missing)
+    rect(monitor.x + 4, MONITOR_TOP + 10, 56, 50, "#4c566a");
+    rect(monitor.x + 8, MONITOR_TOP + 14, 48, 22, "#111418");
     const blinkOn = Math.floor(time * 2) % 2 === 0;
-    rect(138, 68, 4, 4, blinkOn ? "#ff3b3b" : "#5a1111");
-    rect(146, 68, 4, 4, "#5a1111");
-    rect(154, 68, 4, 4, blinkOn ? "#5a1111" : "#ff3b3b");
-    rect(138, 78, 40, 4, "#2e3440"); // empty oxygen gauge
-    rect(138, 78, 3, 4, "#ff3b3b");
-    rect(140, 92, 6, 4, "#ffd84d");  // buttons
-    rect(152, 92, 6, 4, "#3fa7ff");
-    rect(164, 92, 6, 4, "#9df5c4");
+    rect(monitor.x + 12, MONITOR_TOP + 18, 4, 4, blinkOn ? "#ff3b3b" : "#5a1111");
+    rect(monitor.x + 20, MONITOR_TOP + 18, 4, 4, "#5a1111");
+    rect(monitor.x + 12, MONITOR_TOP + 42, 6, 4, "#ffd84d");  // buttons
+    rect(monitor.x + 24, MONITOR_TOP + 42, 6, 4, "#3fa7ff");
   }
 
-  // Blinking "!" above the monitor once the tutorial tasks are done,
+  drawSurvivalWallScreen(time);
+
+  // Blinking "!" next to the monitor once the tutorial tasks are done,
   // until the player has looked at the monitor
   if (tutorialDone() && !tutorialCompleteSeen && Math.floor(time * 3) % 2 === 0) {
-    const cx = monitor.x + monitor.width / 2;
-    rect(cx - 4, 20, 9, 17, "#000000");  // outline
-    rect(cx - 2, 22, 5, 9, "#ffd84d");   // the line of the "!"
-    rect(cx - 2, 33, 5, 3, "#ffd84d");   // the dot
+    const ex = monitor.x - 12;
+    rect(ex - 2, MONITOR_TOP + 14, 9, 17, "#000000");  // outline
+    rect(ex, MONITOR_TOP + 16, 5, 9, "#ffd84d");       // the line of the "!"
+    rect(ex, MONITOR_TOP + 27, 5, 3, "#ffd84d");       // the dot
   }
 
-  // Exit door (left) and storage room door (right)
+  // Exit door (left), recovery room door and storage room door (right)
   drawDoorway(exitDoor);
+  drawDoorway(recoveryDoor);
   drawDoorway(storageDoor);
+
+  // Red cross above the recovery room door (where the astronaut is)
+  const crossX = recoveryDoor.x + recoveryDoor.width / 2;
+  rect(crossX - 6, 49, 12, 12, "#e8fff2");
+  rect(crossX - 1, 51, 3, 8, "#ff3b3b");
+  rect(crossX - 4, 54, 9, 3, "#ff3b3b");
 
   // Blue "O2" sign above the storage door, as a clue
   rect(storageDoor.x - 2, 50, storageDoor.width + 4, 10, "#1c3a5a");
@@ -2904,8 +3986,8 @@ function drawInsideRoom(time) {
 function drawCot(time) {
   const top = cot.y - 16;
 
-  // Team artwork: a bed from "Interior (1).png" at its real size (64x52)
-  if (!drawPart(ctx, images.interiorFurniture, INTERIOR.bed, cot.x, cot.y - 52, 64, 52)) {
+  // Team artwork: a bed from "Interior (1).png", at 3/4 size
+  if (!drawPart(ctx, images.interiorFurniture, INTERIOR.bed, cot.x, cot.y - cot.height, cot.width, cot.height)) {
     // Placeholder cot: legs and mattress
     rect(cot.x + 2, top + 8, 3, 8, "#2e3440");
     rect(cot.x + cot.width - 5, top + 8, 3, 8, "#2e3440");
@@ -2915,24 +3997,77 @@ function drawCot(time) {
 
   drawAstronaut();
 
-  // Heart monitor next to the cot: a blip moves across a small screen
-  const monitorX = cot.x + cot.width + 6;
-  rect(monitorX + 6, top - 4, 2, 20, "#2e3440"); // stand
-  rect(monitorX, top - 18, 16, 12, "#111418");
-  rect(monitorX + 1, top - 12, 14, 1, "#1f5a3a");
-  const blipX = Math.floor(time * 10) % 14;
-  rect(monitorX + 1 + blipX, top - 14, 1, 3, "#5fd39a");
+  // The treat Laika left next to her head (on the pillow)
+  if (treatLeft) {
+    if (!drawPart(ctx, images.dogTreat, TREAT_CROP, cot.x + 35, cot.y - 34, 7, 7)) {
+      rect(cot.x + 35, cot.y - 31, 7, 3, "#f2d3a0");
+    }
+  }
 
   // Label so it's clear she can't move
-  label("UNCONSCIOUS", cot.x + cot.width / 2, cot.y - 55, "#ff8a8a");
+  label("UNCONSCIOUS", cot.x + cot.width / 2, cot.y - cot.height - 4, "#ff8a8a");
+}
+
+// The astronaut's close-up (Astronaut Close up.png) with her eyes closed.
+// The image has her eyes open, so skin color is painted over each eye and a
+// dark line is drawn for the closed eyelid. (x, y) = top left, size x size.
+// Returns false if the image isn't loaded.
+const ASTRONAUT_CLOSEUP_CROP = { x: 70, y: 40, width: 440, height: 440 };
+const ASTRONAUT_EYES = [ // where her eyes are inside the image
+  { x: 167, y: 230, width: 44, height: 34 },
+  { x: 245, y: 233, width: 44, height: 34 }
+];
+function drawSleepingAstronautFace(context, x, y, size) {
+  const crop = ASTRONAUT_CLOSEUP_CROP;
+  if (!drawPart(context, images.astronautCloseUp, crop, x, y, size, size)) {
+    return false;
+  }
+  const scale = size / crop.width;
+  for (const eye of ASTRONAUT_EYES) {
+    const ex = x + (eye.x - crop.x) * scale;
+    const ey = y + (eye.y - crop.y) * scale;
+    const ew = Math.max(1, eye.width * scale);
+    const eh = Math.max(1, eye.height * scale);
+    context.fillStyle = "#fddccc"; // skin
+    context.fillRect(ex, ey, ew, eh);
+    context.fillStyle = "#3a2630"; // closed eyelid / lashes
+    context.fillRect(ex + ew * 0.1, ey + eh * 0.55, ew * 0.8, Math.max(1, eh * 0.14));
+    context.fillRect(ex + ew * 0.05, ey + eh * 0.45, ew * 0.12, Math.max(1, eh * 0.12));
+  }
+  return true;
 }
 
 function drawAstronaut() {
   // She is lying on the bed, unconscious, and never moves.
-  // Team artwork: one frame from "Astronaut frames.png" (lying on her back), at its real size
+  // Team artwork: her close-up with her eyes closed, head on a pillow,
+  // tucked in up to her chin with a blanket
+  const blanketX = cot.x + 3;
+  const blanketWidth = cot.width - 6;
+  rect(cot.x + 10, cot.y - 35, 28, 9, "#eceaf4");  // pillow
+  rect(cot.x + 10, cot.y - 27, 28, 1, "#b8b4c8");  // pillow shadow
+  if (drawSleepingAstronautFace(ctx, cot.x + 14, cot.y - 39, 20)) {
+    rect(blanketX, cot.y - 24, blanketWidth, 18, "#5b7fd4");  // blanket
+    rect(blanketX, cot.y - 24, blanketWidth, 3, "#f0eef6");   // folded-over sheet
+    rect(blanketX, cot.y - 21, blanketWidth, 1, "#c8c4d8");
+    rect(cot.x + 12, cot.y - 19, 24, 9, "#6d90e0");           // her body under the blanket
+    rect(blanketX, cot.y - 19, 1, 13, "#3f5ea8");             // tucked-in sides
+    rect(blanketX + blanketWidth - 1, cot.y - 19, 1, 13, "#3f5ea8");
+    rect(blanketX, cot.y - 7, blanketWidth, 1, "#3f5ea8");    // tucked in at the foot
+
+    // She's hooked up to the IV pole: the IV line goes under the blanket to
+    // her arm, and the feeding tube from the feeding bag goes to her nose
+    const s = ivStand;
+    const noseX = cot.x + 14 + (ASTRONAUT_NOSE.x - ASTRONAUT_CLOSEUP_CROP.x) * 20 / ASTRONAUT_CLOSEUP_CROP.width;
+    const noseY = cot.y - 39 + (ASTRONAUT_NOSE.y - ASTRONAUT_CLOSEUP_CROP.y) * 20 / ASTRONAUT_CLOSEUP_CROP.width;
+    drawTube([[s.x + 25, s.y + 34], [s.x + 26, s.y + 50], [blanketX - 4, cot.y - 22], [blanketX + 2, cot.y - 20]], "#7a5cd6", 1);
+    drawTube([[s.x - 1, s.y + 24], [s.x + 2, s.y + 40], [cot.x + 8, cot.y - 34], [noseX, noseY]], "#c9a66b", 1);
+    rect(noseX - 3, noseY - 1, 2, 2, "#ffffff"); // tape holding the tube on her cheek
+    return;
+  }
+  // Fallback: one frame from "Astronaut frames.png" (lying on her back)
   const frame = ASTRONAUT_LYING;
   if (drawPart(ctx, images.astronaut, frame, cot.x + cot.width / 2 - frame.width / 2,
-               cot.y - 42, frame.width, frame.height)) {
+               cot.y - 34, frame.width, frame.height)) {
     return;
   }
   // Placeholder astronaut
@@ -2949,17 +4084,112 @@ function drawAstronaut() {
 function drawInside(time) {
   drawInsideRoom(time);
   drawLooseBucket("inside", time);
-
-  drawShadow(cot.x, cot.y, cot.width);
   drawShadow(dog.x, dog.y, dog.width);
+  drawDog(time);
+}
 
-  // Whoever is lower on the screen is drawn last, so they appear in front
-  if (dog.y < cot.y) {
-    drawDog(time);
-    drawCot(time);
-  } else {
-    drawCot(time);
-    drawDog(time);
+// =============================================
+// RECOVERY ROOM (where the astronaut lies in bed)
+// =============================================
+
+function drawRecoveryRoom(time) {
+  if (!drawWallAndFloor(INTERIOR.wallMain, INTERIOR.floorMain)) {
+    drawPlaceholderWallAndFloor("#3b4252");
+  }
+  label("RECOVERY ROOM", 160, 20, "#ffffff");
+
+  // A window above the bed (team artwork)
+  if (!drawPart(ctx, images.interiorFurniture, INTERIOR.window, 215, 30, 38, 25)) {
+    rect(222, 35, 24, 18, "#6b7380");
+    rect(224, 37, 20, 14, "#1a0b33");
+  }
+
+  // Red cross on the wall
+  rect(120, 40, 16, 16, "#e8fff2");
+  rect(126, 42, 4, 12, "#ff3b3b");
+  rect(122, 46, 12, 4, "#ff3b3b");
+
+  // Hospital furniture (hospital pixel-art pack, all drawn 2x).
+  // Things on the wall first, then things standing against the wall.
+  const floor = INSIDE_FLOOR_TOP;
+  drawHospitalSprite(images.handSanitizer, FULL_SPRITE, 46, 52);       // on the wall
+  drawHospitalSprite(images.anatomyPoster, FULL_SPRITE, 76, 28);
+  drawHospitalSprite(images.pharmacyShelf, FULL_SPRITE, 176, 40);
+  drawHospitalSprite(images.trashBin, FULL_SPRITE, 46, floor - 30);    // against the wall
+  drawHospitalSprite(images.armchair, TALL_SPRITE, 80, floor - 62);
+  drawHospitalSprite(images.bedsideTable, FULL_SPRITE, 108, floor - 24);
+  drawHospitalSprite(images.flower, FULL_SPRITE, 108, floor - 48);     // on the table
+  drawHospitalSprite(images.hospitalCabinet, TALL_SPRITE, 140, floor - 62);
+
+  // Door back to the main room
+  drawDoorway(recoveryExit);
+}
+
+// A thin tube (the IV line or the feeding tube) through a list of points
+function drawTube(points, color, width) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i][0], points[i][1]);
+  }
+  ctx.stroke();
+}
+
+// The IV stand at the head of the bed, with the feeding bag on its left hook
+function drawIvStand() {
+  const s = ivStand;
+  if (!drawPart(ctx, images.ivStand, TALL_SPRITE, s.x, s.y, s.width, s.height)) {
+    // Placeholder stand with a clear IV bag
+    rect(s.x + 9, s.y + 2, 4, 54, "#6b7380");
+    rect(s.x + 2, s.y + 2, 26, 2, "#6b7380");
+    rect(s.x + 2, s.y + 44, 20, 4, "#4c566a");
+    rect(s.x + 19, s.y + 8, 12, 16, "#d8f0ff");
+  }
+  // The feeding bag (IV bag.webp) hanging from the left hook
+  if (!drawPart(ctx, images.ivBag, IV_BAG_CROP, s.x - 6, s.y + 5, 10, 19)) {
+    rect(s.x - 5, s.y + 6, 8, 13, "#e8d9b0"); // placeholder bag
+  }
+}
+
+// Draws one hospital-pack sprite at 2x. (x, y) = top left.
+function drawHospitalSprite(image, crop, x, y) {
+  drawPart(ctx, image, crop, x, y, crop.width * 2, crop.height * 2);
+}
+
+// The heart rate monitor on a rolling stand (Heart rate monitor.png).
+// The light on the stand blinks with every heartbeat.
+function drawHeartMonitorStand() {
+  const x = heartMonitor.x;
+  const bottom = cot.y - 2;
+  rect(x + 16, bottom - 30, 3, 26, "#4c566a");  // pole
+  rect(x + 8, bottom - 5, 20, 3, "#4c566a");    // base
+  rect(x + 8, bottom - 2, 3, 2, "#2e3440");     // wheels
+  rect(x + 25, bottom - 2, 3, 2, "#2e3440");
+  if (!drawPart(ctx, images.heartMonitor, HEART_MONITOR_CROP, x, bottom - 58, heartMonitor.width, 30)) {
+    rect(x, bottom - 58, heartMonitor.width, 30, "#0b2a2a"); // placeholder screen
+    rect(x + 3, bottom - 44, heartMonitor.width - 6, 1, "#3be04a");
+  }
+  rect(x + 15, bottom - 27, 5, 2, heartBeatFlash > 0 ? "#5fff6a" : "#1f5a3a");
+}
+
+function drawRecovery(time) {
+  drawRecoveryRoom(time);
+
+  // Everything standing on the floor, drawn from back (small y) to front
+  const things = [
+    { y: ivStand.y + 56, draw: drawIvStand }, // the bottom of its pole
+    { y: cot.y, draw: drawCot },
+    { y: cot.y - 2, draw: drawHeartMonitorStand },
+    { y: dog.y, draw: drawDog }
+  ];
+  drawShadow(cot.x, cot.y, cot.width);
+  drawShadow(heartMonitor.x + 6, cot.y - 2, 24);
+  drawShadow(dog.x, dog.y, dog.width);
+  things.sort(function (a, b) { return a.y - b.y; });
+  for (const thing of things) {
+    thing.draw(time);
   }
 }
 
@@ -3391,9 +4621,89 @@ function drawPlayerMarker(time) {
   label("YOU", x, y - 2, "#ffd84d");
 }
 
+// "Bark!" above Laika's head for a moment after she barks (B)
+function drawBarkBubble() {
+  if (barkBubbleTime <= 0) {
+    return;
+  }
+  const x = dog.facing > 0 ? dog.x + dog.width + 12 : dog.x - 12; // in front of her face
+  const rise = (0.5 - barkBubbleTime) * 12;                        // floats up a little
+  label("Bark!", x, dog.y - dog.height - rise, "#ffffff");
+}
+
 // =============================================
 // CUTSCENE DRAWING (one block per phase)
 // =============================================
+
+// Close-up of Laika at the astronaut's bed (used when checking on her and
+// when giving supplies). Laika has her helmet off inside the ship.
+function drawBedsideScene(time, showTreat) {
+  rect(0, 0, GAME_WIDTH, GAME_HEIGHT, "#1b1d26");             // dim room
+  rect(0, 0, GAME_WIDTH, 6, "#2e3440");
+  rect(52, 18, 136, 80, "#e8e4f0");                            // pillow
+  rect(52, 18, 136, 3, "#ffffff");
+
+  // The astronaut, eyes closed (Astronaut Close up.png)
+  if (!drawSleepingAstronautFace(ctx, 70, 12, 100)) {
+    const frame = ASTRONAUT_LYING; // fallback: the lying-down frame, made bigger
+    drawPart(ctx, images.astronaut, frame, 80, 30, frame.width * 3, frame.height * 3);
+  }
+
+  // The IV stand (room_iv_stand_w.png, 4x) and the feeding bag (IV bag.webp)
+  if (!drawPart(ctx, images.ivStand, TALL_SPRITE, 12, 8, 64, 128)) {
+    rect(28, 8, 8, 110, "#9aa3ad");                            // placeholder stand
+    rect(48, 24, 24, 30, "#d8f0ff");                           // and IV bag
+  }
+  if (!drawPart(ctx, images.ivBag, IV_BAG_CROP, 2, 14, 20, 39)) {
+    rect(4, 16, 16, 28, "#e8d9b0");                            // placeholder feeding bag
+  }
+  // The IV line goes under the blanket to her arm...
+  drawTube([[62, 76], [64, 90], [70, 100]], "#7a5cd6", 2);
+  rect(36, 96, 180, 44, "#d4606a");                            // blanket
+  rect(36, 96, 180, 4, "#e88a8f");
+
+  // ...and the feeding tube goes from the feeding bag to her nose
+  const noseX = 70 + (ASTRONAUT_NOSE.x - ASTRONAUT_CLOSEUP_CROP.x) * 100 / ASTRONAUT_CLOSEUP_CROP.width;
+  const noseY = 12 + (ASTRONAUT_NOSE.y - ASTRONAUT_CLOSEUP_CROP.y) * 100 / ASTRONAUT_CLOSEUP_CROP.width;
+  drawTube([[12, 52], [18, 74], [60, 80], [noseX - 12, noseY + 4], [noseX, noseY]], "#c9a66b", 2);
+  rect(noseX - 16, noseY + 1, 6, 4, "#ffffff");                // tape on her cheek
+
+  // Soft "z"s so it's clear she's asleep / unconscious
+  const zRise = (time * 6) % 12;
+  label("z", 176, 30 - zRise, "rgba(200,200,255,0.8)");
+
+  // The supplies Laika brings
+  if (sceneGave.includes("water")) {
+    ctx.save();
+    ctx.translate(176, 100);
+    ctx.scale(3, 3);
+    drawBucket(0, 0, true, time);
+    ctx.restore();
+  }
+  if (sceneGave.includes("food")) {
+    for (let i = 0; i < FRUIT_NEEDED; i++) {
+      drawAlienFruit(150 + i * 12, 132, time + i, alienFruits[i % alienFruits.length].type, true);
+    }
+  }
+
+  // The treat she leaves next to her head
+  if (showTreat) {
+    if (!drawPart(ctx, images.dogTreat, TREAT_CROP, 168, 52, 22, 22)) {
+      rect(168, 60, 22, 7, "#f2d3a0");
+    }
+    if (Math.floor(time * 4) % 2 === 0) {
+      rect(192, 50, 2, 2, "#ffffff"); // sparkle
+      rect(164, 72, 2, 2, "#ffffff");
+    }
+  }
+
+  // Laika (Laika.png, no helmet), 3x size, facing the astronaut
+  const frame = LAIKA_FRAMES[Math.floor(time * 1.5) % 2];
+  if (!drawPart(ctx, images.laika, frame, 210, 72, 78, 54)) {
+    rect(214, 100, 60, 16, "#8b4a1f"); // placeholder dog body
+    rect(206, 90, 20, 14, "#8b4a1f");
+  }
+}
 
 function drawCutscene(time) {
   const phase = cutscene.phase;
@@ -3480,8 +4790,11 @@ function drawCutscene(time) {
     rect(0, 0, GAME_WIDTH, GAME_HEIGHT, "rgba(0,0,0," + Math.max(0, 0.95 - t) + ")");
 
   } else if (phase === "inside") {
-    // Inside the ship: Laika next to the unconscious astronaut
-    drawInside(time);
+    // Inside the ship's recovery room: Laika next to the unconscious astronaut
+    drawRecovery(time);
+
+  } else if (phase === "bedside" || phase === "bedsideTreat") {
+    drawBedsideScene(time, phase === "bedsideTreat");
   }
 
   ctx.restore();
@@ -3510,7 +4823,7 @@ function draw(time) {
     gifs[name].view = null;
   }
 
-  if (state === "title" || state === "menu") {
+  if (state === "title" || state === "menu" || state === "quit") {
     drawTitleBackground(time);
   } else if (state === "cutscene" || (state === "paused" && stateBeforePause === "cutscene")) {
     drawCutscene(time);
@@ -3520,6 +4833,8 @@ function draw(time) {
       drawOutside(time);
     } else if (currentScene === "inside") {
       drawInside(time);
+    } else if (currentScene === "recovery") {
+      drawRecovery(time);
     } else if (currentScene === "storage") {
       drawStorage(time);
     } else if (currentScene === "lake" || currentScene === "jungle") {
@@ -3530,6 +4845,7 @@ function draw(time) {
     drawInteractionPrompt(time);
     drawAttachEffect(time);
     drawPlayerMarker(time);
+    drawBarkBubble();
     drawHud(time);
 
     if (state === "tutorial" && !tutorialDone()) {
