@@ -392,13 +392,11 @@ stays sharp.
 | `room_hand_sanitizer.png` | Hand sanitizer on the wall by the door |
 | `room_trash_bin.png` | Trash bin by the door |
 
-In the folder but **not used**: `Iv pole.jpg` (replaced by the pixel-art
-`room_iv_stand_w.png`, which matches the game's style and has a
-transparent background; the JPG has a solid gray background), the other
-`room_*` sprites (beds, meal trays, pills, ECG cart, biohazard bins, other IV
-stands), all `operation_*`, `lab_*` and `maternity_*` sprites,
-`operation_ecg_table.aseprite`, and the four `spritesheet_hospital_*.png`
-sheets.
+Only the hospital pack sprites listed above are kept in the project. The
+pack's other sprites (other beds and IV stands, meal trays, pills, ECG cart,
+biohazard bins, the operating room, lab and maternity sprites, the sprite
+sheets and an `.aseprite` file) and `Iv pole.jpg` (replaced by
+`room_iv_stand_w.png`) were removed because the game doesn't use them.
 
 Notes:
 
@@ -440,9 +438,10 @@ twice in a row).
 | Celebration | `congratulations audi.ogg` | Tutorial complete (first monitor visit after it) and mission complete |
 | Out of oxygen | `died audio.ogg` | When oxygen runs out |
 
-Not used: the book, cloth, knife, coins, creak, belt, leather,
-`metalLatch`, `doorClose`, `rollover`, `mouseclick`, `mouserelease` and
-`switch13`–`switch38` sounds.
+Every file in `assets` and `assets/Audio` is used by the game. Unused
+sounds from the sound packs (book, cloth, knife, coins, creak, belt,
+leather, `metalLatch`, `doorClose`, `rollover`, `mouseclick`,
+`mouserelease` and `switch13`–`switch38`) were removed.
 
 #### Dog barking
 
