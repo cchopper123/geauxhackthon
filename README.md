@@ -328,52 +328,55 @@ the top of `game.js`. Sounds live in `assets/Audio` and are loaded in the
 placeholder shape and shows a "Missing asset" warning in the browser
 console (F12).
 
-**Original assets:** assets our team created ourselves are original assets.
-When a file is confirmed as ours, change its "Source / license" entry to
-"Original asset by <name>".
+**Original assets:** Laika (`Laika.png`) is original artwork created by our
+team. Every other asset is credited below to its source and creator where
+that could be verified.
 
-**Verification status:** Claude Code did not create, download or edit any
-image or sound file, and could not check where they came from. Every source
-and license below that says **Needs verification** must be checked and
-filled in by the team. Some file dates are from before the hackathon, which
-suggests those files came from an asset pack or another website. Their
-original source and license still need to be found and written down.
+**How the sources were checked:** the team gave the source links. Each
+source page was opened (in October 2026) to record the creator, the license
+or usage terms, whether credit is required, and anything the page says
+about generative AI. Each source was matched to a file by what the file
+looks like, its size and how it's used in the game. Where a source page
+couldn't be opened, or a file doesn't clearly match its source, the entry
+says **needs verification** – those must be checked by hand before
+submitting. No license was assumed just because a download was free.
 
 ### Images
 
 | File | Used for | Source / license |
 | ---- | -------- | ---------------- |
-| `assets/Space Background.png` | Space behind the title screen and the cutscene's flight through space | Needs verification (team original?) |
-| `assets/Planet Background.png` | Sky on the alien planet (gameplay and crash scene) | Needs verification (team original?) |
-| `assets/Title screen World.gif` | The spinning planet: title screen, menu, and the cutscene's flight toward it (animated GIF) | Needs verification (team original?) |
-| `assets/Spaceship.png` | The ship: flying (title screen and cutscene) and crashed on the planet | Needs verification (team original?) |
-| `assets/Planet ground.png` | Ground texture on the planet | Needs verification (file dated 2023, before the hackathon) |
-| `assets/Oxygen tank.png` | Oxygen tank in the storage room, on Laika's back, the filling station's big tanks, the oxygen meter icon, the tutorial pictures | Needs verification (team original?) |
-| `assets/Monitor.gif` | The ship monitor in the main room (animated GIF, shown 2x) | Needs verification (file dated 2023, before the hackathon) |
-| `assets/Laika.png` | Laika, the playable dachshund (2 frames); her dialogue portrait; the tutorial pictures | Needs verification (team original?) |
-| `assets/Laikia walking.png` | Laika's walking animation (3 frames, played 1-2-3-2) | Needs verification (team original?) |
-| `assets/Space helmet.png` | Laika's space helmet | Needs verification (team original?) |
-| `assets/Astronaut Close up.png` | The sleeping astronaut in bed and in the bedside scene (the game paints her eyes closed; the file isn't changed) | Needs verification (team original?) |
-| `assets/Astronaut face icon.png` | The astronaut's dialogue portrait | Needs verification (team original?) |
-| `assets/Astronaut frames.png` | Backup picture of the astronaut lying down (used only if the close-up is missing) | Needs verification (team original?) |
-| `assets/Alien fruits.png` | Alien fruit on the ground, on farm plants, and the HUD icon (sheet of 16) | Needs verification (team original?) |
-| `assets/seeds.png` | Alien seeds on the ground and the HUD icon (4 x 4 grid) | Needs verification (team original?) |
-| `assets/Bucket.png` | The water bucket | Needs verification (team original?) |
-| `assets/Lake.png` | The lake in the Lake area | Needs verification (team original?) |
-| `assets/dog treat.png` | The treat (HUD, tutorial pictures, on the astronaut's pillow) | Needs verification (team original?) |
-| `assets/Radio.png` | The communication device | Needs verification (team original?) |
-| `assets/rocks.png` | Rocks scattered by the crash | Needs verification (team original?) |
-| `assets/Big Tree.png` | The giant tree in the jungle (black background, drawn with "lighten") | Needs verification (file dated 2024, before the hackathon) |
-| `assets/Blue tree.png`, `Blue tree 2.png`, `Cool blue tree.png`, `Purple tree.png`, `Purple tree 2.png` | Trees along the horizon (black backgrounds, drawn with "lighten") | Needs verification (files dated 2024, before the hackathon) |
-| `assets/Interior (2).png` | Walls and floors inside the ship (all rooms) | Needs verification (file dated 2021, before the hackathon – likely an asset pack) |
-| `assets/Interior (1).png` | Furniture inside the ship: the astronaut's bed, doorways, windows, plants, shelves, rack, cabinets, lockers | Needs verification (file dated 2021, before the hackathon – likely an asset pack) |
-| `assets/Heart rate monitor.png` | The heart rate monitor in the recovery room, and the big view when you press E (the game covers its "72" with the live heart rate; the file isn't changed) | Needs verification |
-| `assets/IV bag.webp` | The feeding bag on the IV stand (room and bedside scene) | Needs verification |
-| `assets/room_*.png` (hospital pack) | The recovery room's furniture – see [Hospital assets](#hospital-assets) | Needs verification (files dated September 2025, before the hackathon – likely a downloaded asset pack) |
+| `assets/Laika.png` | Laika, the playable dachshund (2 frames); her dialogue portrait; the tutorial pictures | **Original artwork created by our team** |
+| `assets/Laikia walking.png` | Laika's walking animation (3 frames, played 1-2-3-2) | Laika's walking animation; the team's Laika artwork. **Needs verification:** confirm the team also drew this walking sheet |
+| `assets/Space Background.png` | Space behind the title screen and the cutscene's flight through space | [Space Background Generator](https://deep-fold.itch.io/space-background-generator) by **Deep-Fold**. Generated images may be used "in your games or other projects"; they may not be distributed "on their own, or in an asset pack". Credit "appreciated, but not required" (generator code: MIT License). Page: "No generative AI was used" |
+| `assets/Planet Background.png` | Sky on the alien planet (gameplay and crash scene) | [Space Background Generator](https://deep-fold.itch.io/space-background-generator) by **Deep-Fold** – same terms as above |
+| `assets/Title screen World.gif` | The spinning planet: title screen, menu, and the cutscene's flight toward it (animated GIF, 100x100 px, 60 frames) | Either the [Pixel Planet Generator](https://deep-fold.itch.io/pixel-planet-generator) by **Deep-Fold** ("completely free, use it however you want", credit appreciated but not required, code MIT) or [Animated Pixel Art Planets (30px)](https://helianthus-games.itch.io/animated-pixel-art-planets-30px) by **Helianthus Games** (personal and commercial use allowed, "Credit is not required"). Both pages say no generative AI was used. **Needs verification:** which of the two this file came from (the Helianthus pack is described as 30px planets; this file is 100x100). No other file in the project uses a spinning planet |
+| `assets/Planet ground.png` | Ground texture on the planet | [Planet Texture Pack 1](https://screamingbrainstudios.com/dl-planet-texture-pack-1/) by **Screaming Brain Studios** – **CC0 / Public Domain**, "free to use in any project, commercial or non-commercial"; no attribution required. Textures were "procedurally generated" with "hand-painted elevation colorizers" (the file is a 1024x512 planet texture, matching the pack) |
+| `assets/Monitor.gif` | The ship monitor in the main room (animated GIF, shown 2x) | [Four Retro Computer Sprites](https://nightspore.itch.io/four-retro-computer-sprites) by **Nightspore** (32x32 animated GIF, matching the pack). "Commercial and non-commercial use OK"; "Credit not required but appreciated"; "Not for use in NFT, Crypto, AI"; "Do not resell as part of an asset pack". Page: "No generative AI was used" |
+| `assets/Interior (1).png` | Furniture inside the ship: the astronaut's bed, doorways, windows, plants, shelves, rack, cabinets, lockers | [Interior Tileset Asset Pack 16x16](https://rcpstd.itch.io/interior-tileset-asset-pack-16x16) by **Rcp Studios**. May "Edit and/or use the assets in commercial or non-commercial projects"; may not "Resell or redistribute the assets to others, even if it is modified"; "Credits are not mandatory but much appreciated". No standard license named. The page doesn't mention AI |
+| `assets/Interior (2).png` | Walls and floors inside the ship (all rooms) | [Interior Tileset Asset Pack 16x16](https://rcpstd.itch.io/interior-tileset-asset-pack-16x16) by **Rcp Studios** – same terms as above |
+| `assets/room_*.png` (hospital pack) | The recovery room's furniture – see [Hospital assets](#hospital-assets) | [Top-Down Hospital](https://soppycraft.itch.io/top-down-hospital) by **Soppycraft**. Allowed in personal and commercial projects, game jams and educational games; may be modified; may NOT be redistributed or sold as-is, claimed as your own work, or put in another asset pack. "Credit is not required but always appreciated". AI: the page has a "No AI" tag but its AI Disclosure says "AI Assisted – Text" – see [Competition compliance](#competition-compliance-sase--gdsc) |
+| `assets/IV bag.webp` | The feeding bag on the IV stand (room and bedside scene) | Source given by the team: [Top-Down Hospital](https://soppycraft.itch.io/top-down-hospital) by **Soppycraft** (terms above). **Needs verification:** this file (350x350 WebP, larger pixels) doesn't look like the pack's 16x16 sprites, and the pack's download isn't itemized on its page, so confirm it really came from this pack |
+| `assets/Big Tree.png` | The giant tree in the jungle (black background, drawn with "lighten") | [Pixel Art Tree Pack – 250 different trees](https://batareya.itch.io/pixel-art-tree-pack-250-different-trees) by **Batareya**. Commercial and non-commercial use allowed; credit appreciated. ⚠️ **AI-generated:** the page says the trees were "created using artificial intelligence" ("All illustrations are created using Stable Diffusion") – see [Competition compliance](#competition-compliance-sase--gdsc) |
+| `assets/Blue tree.png`, `Blue tree 2.png`, `Cool blue tree.png`, `Purple tree.png`, `Purple tree 2.png` | Trees along the horizon (black backgrounds, drawn with "lighten") | [Pixel Art Tree Pack – 250 different trees](https://batareya.itch.io/pixel-art-tree-pack-250-different-trees) by **Batareya** – same terms. ⚠️ **AI-generated** (Stable Diffusion) – see [Competition compliance](#competition-compliance-sase--gdsc) |
+| `assets/Space helmet.png` | Laika's space helmet | [Pixel art illustration Astronaut helmet](https://www.vecteezy.com/vector-art/26136781) by **Collaborapix Studio** on Vecteezy. Listed as **Pro** content under the Vecteezy Pro Standard License ("No Attribution Required" with Pro). **License needs verification:** confirm it was downloaded with a Vecteezy Pro subscription or Pro credits. Under Vecteezy's Free License, attribution is required and content may not be used on products for resale. The page doesn't mark it as AI-generated |
+| `assets/Oxygen tank.png` | Oxygen tank in the storage room, on Laika's back, the filling station's big tanks, the oxygen meter icon, the tutorial pictures | [oxygen tank pixel art](https://www.vecteezy.com/vector-art/54749638) by **Helixter** on Vecteezy. Listed as **Pro** content under the Pro Standard License ("No Attribution Required" with Pro). **License needs verification** – same as the helmet. The page doesn't mark it as AI-generated |
+| `assets/Radio.png` | The communication device | The team's Bing link leads to a **Freepik Premium** vector, "Walkie pixel art for dynamic digital projects and designs" (`freepik.com/premium-vector/walkie-pixel-art-dynamic-digital-projects-designs_1032646-197.htm`). **Creator and license need verification:** Freepik blocked automated access, so the author and terms couldn't be read. Freepik Premium content normally needs a Premium subscription |
+| `assets/Alien fruits.png` | Alien fruit on the ground, on farm plants, and the HUD icon (sheet of 16) | [ArtStation artwork ob0KDL](https://www.artstation.com/artwork/ob0KDL). **Creator and license need verification:** ArtStation blocked automated access, so the artist, terms and any AI tags couldn't be read. ArtStation posts are the artist's work; unless the post gives a license, get the artist's permission |
+| `assets/Astronaut face icon.png` | The astronaut's dialogue portrait | Source given by the team: [Astronaut Portrait Pack](https://captainskolot.itch.io/astronaut-portrait-pack-asset-pixelart-pixel-art-sprite-badass-bust-pack-cowb) by **CaptainSkolot**. The page lists **Creative Commons Attribution 4.0** (CC BY 4.0 requires credit, even though the page also says "credit is not required"), allows commercial use and changes, and forbids reselling the assets on their own. ⚠️ AI Disclosure: "AI Assisted – Graphics" ("a local generative tool for rough concepts, then refined by hand") – see [Competition compliance](#competition-compliance-sase--gdsc). **Needs verification:** this file shows a full-body astronaut, while the pack is described as bust portraits |
+| `assets/Astronaut Close up.png` | The sleeping astronaut in bed and in the bedside scene (the game paints her eyes closed; the file isn't changed) | **Source and license need verification.** No source was provided. It's a helmet bust portrait, so check whether it came from the same CaptainSkolot pack (if so, the pack's AI-assisted note applies to it too) |
+| `assets/Astronaut frames.png` | Backup picture of the astronaut lying down (used only if the close-up is missing) | **Source and license need verification** |
+| `assets/seeds.png` | Alien seeds on the ground and the HUD icon (4 x 4 grid) | **Source and license need verification.** The team listed [Wild Plants – Pixel Asset Pack](https://pop-shop-packs.itch.io/wild-plants-pixel-asset-pack) by **Pop Shop Packs** as a possible plant source (commercial use allowed, credit "not necessary but appreciated", no resale, no uploading to generative AI, "No generative AI was used"). That pack has seeds for 8 plants, while this file has 16 seeds in a different layout, so no file in the project is confirmed to come from it |
+| `assets/Spaceship.png` | The ship: flying (title screen and cutscene) and crashed on the planet | **Source and license need verification** |
+| `assets/Bucket.png` | The water bucket | **Source and license need verification** |
+| `assets/Lake.png` | The lake in the Lake area | **Source and license need verification** |
+| `assets/dog treat.png` | The treat (HUD, tutorial pictures, on the astronaut's pillow) | **Source and license need verification** |
+| `assets/rocks.png` | Rocks scattered by the crash | **Source and license need verification** |
+| `assets/Heart rate monitor.png` | The heart rate monitor in the recovery room, and the big view when you press E (the game covers its "72" with the live heart rate; the file isn't changed) | **Source and license need verification.** Not part of the Top-Down Hospital pack's 16x16 style |
 
 #### Hospital assets
 
-The hospital pixel-art pack (16x16 and 16x32 sprites with transparent
+The [Top-Down Hospital](https://soppycraft.itch.io/top-down-hospital)
+pixel-art pack by **Soppycraft** (16x16 and 16x32 sprites with transparent
 backgrounds) is used to make the recovery room look like a hospital room.
 Each sprite is drawn at 2x (4x for the IV stand in the bedside scene) so it
 stays sharp.
@@ -397,6 +400,9 @@ pack's other sprites (other beds and IV stands, meal trays, pills, ECG cart,
 biohazard bins, the operating room, lab and maternity sprites, the sprite
 sheets and an `.aseprite` file) and `Iv pole.jpg` (replaced by
 `room_iv_stand_w.png`) were removed because the game doesn't use them.
+`Iv pole.jpg` was the [intravenous IV stand isometric icon](https://www.vecteezy.com/vector-art/45872464-intravenous-iv-stand-isometric-icon-illustration)
+by **Muhamad Ulum** on Vecteezy (Pro Standard License); it is no longer in
+the game.
 
 Notes:
 
@@ -487,21 +493,20 @@ short sections of it:
 
 #### Sound sources and licenses
 
-- The 2014 files (`footstep00`–`09`, `door*`, `metalPot*`, `metalClick`,
-  `chop`, `handleSmallLeather*`, …) and the 2017 files (`click1`–`5`,
-  `switch*`, …) look like Kenney's free **"RPG Audio"** and **"UI Audio"**
-  packs (kenney.nl), which are released under **CC0** (public domain).
-  **Needs verification:** confirm this is where they came from.
-- `congratulations audi.ogg` and `died audio.ogg` are also dated 2014 and
-  may come from a Kenney pack. **Needs verification.**
-- `Dachshund Dog Barking Outdoors.mp3`, `Dachshund Whining Sound Effect in
-  HD Quality.mp3`, `space ship flying.wav`, `Secuirty alarm.mp3`,
-  `Space ship explosion.ogg`, `Monitor beep.ogg`, `Astronaut talking
-  sound.mp3`, `Laika running audio.mp3`, `Title background music.mp3`,
-  `Planet background music.ogg` and `Clicking.wav`: source and license
-  unknown. **Needs verification.** If a file was taken from a video site,
-  check that its license allows use in a game, and credit the author if the
-  license asks for it.
+No source links were provided for the sounds.
+
+| File(s) in `assets/Audio` | Used for | Source / license |
+| ------------------------- | -------- | ---------------- |
+| `footstep00.ogg` … `footstep09.ogg`, `doorOpen_1.ogg`, `doorOpen_2.ogg`, `metalPot1.ogg` … `metalPot3.ogg`, `metalClick.ogg`, `chop.ogg`, `handleSmallLeather.ogg`, `handleSmallLeather2.ogg` | Footsteps, doors, bucket, radio, digging, seeds | Very likely [RPG Audio](https://kenney.nl/assets/rpg-audio) by **Kenney** – **CC0** (public domain; credit not required). The file names and dates match this 50-file pack, but the page doesn't list file names. **Needs verification:** confirm the download |
+| `click1.ogg` … `click5.ogg`, `switch1.ogg` … `switch12.ogg` | Interacting with E; the computer's robotic voice | Very likely [UI Audio](https://kenney.nl/assets/ui-audio) by **Kenney** – **CC0**. Same match and same check as above |
+| `congratulations audi.ogg`, `died audio.ogg` | Tutorial / mission complete; out of oxygen | **Source and license need verification** (dated 2014, possibly from a Kenney pack) |
+| `Dachshund Dog Barking Outdoors.mp3`, `Dachshund Whining Sound Effect in HD Quality.mp3` | Laika's barks and whine | **Source and license need verification.** The names look like titles of online videos; check that the license allows use in a game |
+| `space ship flying.wav`, `Secuirty alarm.mp3`, `Space ship explosion.ogg` | Crash cutscene | **Source and license need verification** |
+| `Astronaut talking sound.mp3` | Astronaut and narrator voices | **Source and license need verification** |
+| `Laika running audio.mp3` | Running | **Source and license need verification** |
+| `Monitor beep.ogg` | Monitors and the heart monitor | **Source and license need verification** |
+| `Clicking.wav` | Button clicks | **Source and license need verification** |
+| `Title background music.mp3`, `Planet background music.ogg` | Music | **Source and license need verification** |
 
 Sound notes:
 
@@ -517,16 +522,77 @@ Sound notes:
 - The overall volume is `SOUND_VOLUME` near the top of `game.js`; each
   sound also has its own volume in the `sounds` / `soundGroups` lists.
 
-## Competition requirements (SASE × GDSC)
+## Competition compliance (SASE × GDSC)
 
 | Rule | Status |
 | ---- | ------ |
-| Maximum of two external APIs | **0 used** (see [External APIs](#external-apis)) |
-| No AI-generated images or videos | No images, videos or sounds were made with AI by Claude Code. The team must confirm that every downloaded image (especially `Heart rate monitor.png`, `IV bag.webp` and the hospital pack) is not AI-generated |
-| Document asset sources and licenses | Every asset is listed above; entries marked **Needs verification** must be filled in by the team before submitting |
-| Playable without unnecessary external dependencies | Runs by opening `index.html`; no internet, server, install, libraries or engine |
+| Maximum of two external APIs | ✅ **0 used** (see [External APIs](#external-apis)) |
+| No AI-generated images or videos | ⚠️ **Not met yet** – the tree images are AI-generated (see below). Other images still need checking |
+| Document asset sources and licenses | ⚠️ Every asset is listed with its source where known; entries marked **needs verification** must be completed before submitting |
+| Playable without unnecessary external dependencies | ✅ Runs by opening `index.html`; no internet, server, install, libraries or engine |
 
-## AI disclosure
+### ⚠️ AI-generated images (problem for the no-AI rule)
+
+These files came from the
+[Pixel Art Tree Pack – 250 different trees](https://batareya.itch.io/pixel-art-tree-pack-250-different-trees)
+by Batareya. Its page says the trees were "created using artificial
+intelligence" and "All illustrations are created using Stable Diffusion",
+and it is tagged "AI Generated":
+
+- `assets/Big Tree.png` – the giant tree in the jungle
+- `assets/Blue tree.png`, `assets/Blue tree 2.png`, `assets/Cool blue tree.png`,
+  `assets/Purple tree.png`, `assets/Purple tree 2.png` – the trees along the horizon
+
+They are **not** hand-drawn or original. They have not been deleted or
+changed. **Recommendation:** replace them with trees drawn by the team, or
+with a tree pack whose page states no generative AI was used, before
+submitting. A creator allowing commercial use doesn't make an asset allowed
+in the competition.
+
+### Other AI concerns to check
+
+- `assets/Astronaut face icon.png` – the source given
+  ([Astronaut Portrait Pack](https://captainskolot.itch.io/astronaut-portrait-pack-asset-pixelart-pixel-art-sprite-badass-bust-pack-cowb)
+  by CaptainSkolot) says "AI Assisted – Graphics": a "local generative tool
+  for rough concepts, then refined by hand". This may break the no-AI rule.
+  Ask the organizers or replace it. `Astronaut Close up.png` needs the same
+  check if it came from this pack.
+- The hospital pack ([Top-Down Hospital](https://soppycraft.itch.io/top-down-hospital)
+  by Soppycraft) is tagged "No AI", but its AI Disclosure says "AI Assisted –
+  Text". That suggests only the page text, not the art, was AI-assisted.
+  Lower concern, but confirm.
+- Files whose source is unknown can't be confirmed as non-AI: `Spaceship.png`,
+  `Bucket.png`, `Lake.png`, `dog treat.png`, `rocks.png`, `seeds.png`,
+  `Heart rate monitor.png`, `Astronaut Close up.png`, `Astronaut frames.png`,
+  `IV bag.webp`. Also `Alien fruits.png` (ArtStation page couldn't be read)
+  and `Radio.png` (Freepik page couldn't be read).
+- The Vecteezy pages for `Space helmet.png` and `Oxygen tank.png` don't
+  mark them as AI-generated, but they are paid **Pro** content – confirm the
+  team has the right license.
+- Sources whose pages say no generative AI was used: Deep-Fold (both
+  generators), Helianthus Games, Nightspore and Pop Shop Packs. Screaming
+  Brain Studios describes its textures as procedurally generated and
+  hand-painted. Rcp Studios doesn't mention AI.
+
+### Licenses that may need a purchase
+
+- `Space helmet.png`, `Oxygen tank.png` – Vecteezy **Pro** content
+- `Radio.png` – Freepik **Premium** content
+- `Alien fruits.png` – ArtStation artwork; permission or a stated license is needed
+
+## Original assets, tools and AI disclosure
+
+- **Original artwork:** Laika (`Laika.png`) was drawn by our team. All
+  other assets are credited to their creators in [Assets](#assets).
+- **Tools:** HTML, CSS and JavaScript, written in **Visual Studio Code**
+  with the **Claude Code** extension.
+- **AI-assisted coding is not AI-generated art.** Claude Code helped write
+  the code. It did not create any images, videos or sounds. Some
+  downloaded image assets were made with AI by their creators – those are
+  listed in [Competition compliance](#competition-compliance-sase--gdsc).
+- Follow the competition's rules for disclosing AI use when submitting.
+
+### Claude Code
 
 Parts of this project were made with help from **Claude Code**, an AI
 coding assistant made by Anthropic.
